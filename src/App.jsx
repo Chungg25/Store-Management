@@ -91,6 +91,9 @@ const Inventory = ({ items, fetchItems }) => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [editingSku, setEditingSku] = useState(null);
   const [editFormData, setEditFormData] = useState({ name: '', unit: '', minThreshold: 0 });
+  const [transactionSku, setTransactionSku] = useState(null);
+  const [transactionType, setTransactionType] = useState(null);
+  const [transactionQty, setTransactionQty] = useState(1);
   const itemsPerPage = 10;
 
   const uniqueGroups = useMemo(() => {
@@ -149,6 +152,24 @@ const Inventory = ({ items, fetchItems }) => {
       return sortConfig.direction === 'asc' ? ' ↑' : ' ↓';
     }
     return '';
+  };
+
+  const handleTransactionClick = (sku, type) => {
+    if (editingSku === sku) setEditingSku(null);
+    setTransactionSku(sku);
+    setTransactionType(type);
+    setTransactionQty(1);
+  };
+
+  const handleConfirmTransaction = async (item) => {
+    if (transactionQty <= 0) return;
+    const amount = transactionType === 'Nhập' ? transactionQty : -transactionQty;
+    if (item.quantity + amount < 0) {
+      alert("Số lượng tồn kho không đủ!");
+      return;
+    }
+    await handleUpdateQuantity(item.sku, item.quantity, amount);
+    setTransactionSku(null);
   };
 
   const handleUpdateQuantity = async (sku, currentQty, amount) => {
@@ -324,8 +345,38 @@ const Inventory = ({ items, fetchItems }) => {
                     ) : null}
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {isEditing ? (
+                    <div style={{ display: 'flex', gap: '0.5rem', minHeight: '32px', alignItems: 'center' }}>
+                      {transactionSku === item.sku ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: transactionType === 'Nhập' ? 'var(--primary)' : 'var(--danger)' }}>
+                            {transactionType}:
+                          </span>
+                          <input
+                            type="number"
+                            min="1"
+                            className="form-input"
+                            style={{ width: '60px', padding: '0.25rem' }}
+                            value={transactionQty}
+                            onChange={(e) => setTransactionQty(Number(e.target.value))}
+                          />
+                          <button
+                            className="btn btn-primary"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#10B981', marginLeft: '4px' }}
+                            onClick={() => handleConfirmTransaction(item)}
+                            disabled={loading}
+                          >
+                            ✓
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#6B7280' }}
+                            onClick={() => setTransactionSku(null)}
+                            disabled={loading}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : isEditing ? (
                         <>
                           <button
                             className="btn btn-primary"
@@ -349,24 +400,27 @@ const Inventory = ({ items, fetchItems }) => {
                           <button
                             className="btn btn-secondary"
                             style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#F59E0B' }}
-                            onClick={() => handleEditClick(item)}
+                            onClick={() => {
+                              setTransactionSku(null);
+                              handleEditClick(item);
+                            }}
                             disabled={loading}
                           >
                             Sửa
                           </button>
                           <button
                             className="btn btn-primary"
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', opacity: 0.5, cursor: 'not-allowed' }}
-                            onClick={() => { }}
-                            disabled={true}
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                            onClick={() => handleTransactionClick(item.sku, 'Nhập')}
+                            disabled={loading}
                           >
                             Nhập
                           </button>
                           <button
                             className="btn btn-secondary"
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', opacity: 0.5, cursor: 'not-allowed' }}
-                            onClick={() => { }}
-                            disabled={true}
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                            onClick={() => handleTransactionClick(item.sku, 'Xuất')}
+                            disabled={loading}
                           >
                             Xuất
                           </button>
