@@ -271,9 +271,6 @@ const Inventory = ({ items, setItems, fetchItems }) => {
         <table>
           <thead>
             <tr>
-              <th onClick={() => requestSort('sku')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                SKU{getSortIndicator('sku')}
-              </th>
               <th onClick={() => requestSort('name')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                 Tên vật tư{getSortIndicator('name')}
               </th>
@@ -297,7 +294,6 @@ const Inventory = ({ items, setItems, fetchItems }) => {
 
               return (
                 <tr key={item.sku}>
-                  <td>{item.sku}</td>
                   <td>
                     {isEditing ? (
                       <input
