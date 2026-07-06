@@ -11,7 +11,7 @@ class InvoiceAI:
             base_url="https://api.groq.com/openai/v1",
             api_key=api_key,
         )
-        self.model = "llama-3.2-90b-vision-preview"
+        self.model = "meta-llama/llama-4-scout-17b-16e-instruct"
 
     def process_image(self, image_path):
         """Đọc ảnh và gửi qua Gemini để bóc tách JSON trực tiếp"""
