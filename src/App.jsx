@@ -83,7 +83,7 @@ const Dashboard = ({ items, transactions }) => {
   );
 };
 
-const Inventory = ({ items, fetchItems }) => {
+const Inventory = ({ items, setItems, fetchItems }) => {
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -174,28 +174,31 @@ const Inventory = ({ items, fetchItems }) => {
   };
 
   const handleUpdateQuantity = async (sku, currentQty, amount) => {
-    setLoading(true);
-    try {
-      const newQty = currentQty + amount;
-      if (newQty < 0) return;
+    const newQty = currentQty + amount;
+    if (newQty < 0) return;
 
-      const res = await fetch(`/api/items/${sku}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quantity: newQty, changeAmount: amount })
-      });
+    // 1. Cập nhật UI ngay lập tức (Optimistic Update)
+    if (setItems) {
+      setItems(prevItems => prevItems.map(item => 
+        item.sku === sku ? { ...item, quantity: newQty } : item
+      ));
+    }
 
-      if (res.ok) {
-        await fetchItems();
-      } else {
-        alert("Có lỗi xảy ra khi cập nhật!");
+    // 2. Chạy ngầm gọi API, không dùng await chặn giao diện
+    fetch(`/api/items/${sku}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quantity: newQty, changeAmount: amount })
+    }).then(res => {
+      if (!res.ok) {
+        alert("Có lỗi xảy ra khi cập nhật số liệu lên Server!");
+        fetchItems(); // Lỗi thì tải lại số cũ
       }
-    } catch (error) {
+    }).catch(error => {
       console.error(error);
       alert("Lỗi kết nối Server.");
-    } finally {
-      setLoading(false);
-    }
+      fetchItems(); // Lỗi thì tải lại số cũ
+    });
   };
 
   const handleEditClick = (item) => {
@@ -907,7 +910,7 @@ function App() {
         <main className="main-content">
           <Routes>
             <Route path="/" element={<Dashboard items={items} transactions={transactions} />} />
-            <Route path="/inventory" element={<Inventory items={items} fetchItems={fetchAllData} />} />
+            <Route path="/inventory" element={<Inventory items={items} setItems={setItems} fetchItems={fetchAllData} />} />
             <Route path="/transactions" element={<Transactions transactions={transactions} fetchItems={fetchAllData} />} />
             <Route path="/ocr" element={<OcrScanner items={items} />} />
             <Route path="/settings" element={
