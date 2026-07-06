@@ -20,7 +20,7 @@ try:
 except ImportError:
     SCHEDULER_AVAILABLE = False
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'))
+load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'), override=True)
 
 app = FastAPI()
 
@@ -459,3 +459,5 @@ async def save_ocr(data: str = Form(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# Trigger reload
