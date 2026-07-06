@@ -151,7 +151,8 @@ def generate_and_send_daily_report():
         </tr>
         """
 
-    today_str = datetime.now().strftime("%d/%m/%Y")
+    vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
+    today_str = datetime.now(vn_tz).strftime("%d/%m/%Y") if vn_tz else datetime.now().strftime("%d/%m/%Y")
     
     html_body = f"""
     <html>
@@ -334,7 +335,8 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
     items_sheet.update_cell(row_idx, 5, new_quantity)
     
     # Ghi log giao dịch và kiểm tra cảnh báo (chạy ngầm để phản hồi nhanh)
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
+    timestamp = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     action = "Nhập" if payload.changeAmount > 0 else "Xuất"
     amount = abs(payload.changeAmount)
     
