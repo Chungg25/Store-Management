@@ -4,7 +4,7 @@ import smtplib
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import gspread
@@ -168,8 +168,21 @@ def update_item_details(sku: str, payload: ItemDetailsUpdate):
     
     return {"message": "Cập nhật thông tin thành công"}
 
+def log_transaction_and_check_alert(trans_sheet, timestamp, sku, item_name, action, amount, unit, threshold_val, new_quantity, change_amount):
+    try:
+        trans_sheet.append_row([timestamp, sku, item_name, action, amount, unit])
+    except Exception as e:
+        print(f"Error writing transaction: {e}")
+        
+    try:
+        threshold = int(threshold_val) if threshold_val else 0
+        if change_amount < 0 and new_quantity <= threshold: # Chỉ gửi mail khi xuất làm giảm tồn kho
+            send_alert_email(item_name, new_quantity, unit, threshold)
+    except Exception as e:
+        print(f"Error checking threshold: {e}")
+
 @app.put("/api/items/{sku}")
-def update_item_quantity(sku: str, payload: ItemUpdate):
+def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: BackgroundTasks):
     items_sheet, trans_sheet = get_sheets()
     if not items_sheet or not trans_sheet:
         raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
@@ -181,29 +194,23 @@ def update_item_quantity(sku: str, payload: ItemUpdate):
     row_idx = cell.row
     new_quantity = payload.quantity
     
+    # Tối ưu: Lấy toàn bộ dữ liệu dòng chỉ trong 1 API call thay vì 3
+    row_data = items_sheet.row_values(row_idx)
+    item_name = row_data[2] if len(row_data) > 2 else ""
+    unit = row_data[3] if len(row_data) > 3 else ""
+    threshold_val = row_data[5] if len(row_data) > 5 else "0"
+    
     items_sheet.update_cell(row_idx, 5, new_quantity)
     
-    item_name = items_sheet.cell(row_idx, 3).value
-    unit = items_sheet.cell(row_idx, 4).value
-    threshold_val = items_sheet.cell(row_idx, 6).value
-    
-    # Ghi log giao dịch
+    # Ghi log giao dịch và kiểm tra cảnh báo (chạy ngầm để phản hồi nhanh)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     action = "Nhập" if payload.changeAmount > 0 else "Xuất"
     amount = abs(payload.changeAmount)
     
-    try:
-        trans_sheet.append_row([timestamp, sku, item_name, action, amount, unit])
-    except Exception as e:
-        print(f"Error writing transaction: {e}")
-    
-    # Kểm tra cảnh báo
-    try:
-        threshold = int(threshold_val) if threshold_val else 0
-        if payload.changeAmount < 0 and new_quantity <= threshold: # Chỉ gửi mail khi xuất làm giảm tồn kho
-            send_alert_email(item_name, new_quantity, unit, threshold)
-    except Exception as e:
-        print(f"Error checking threshold: {e}")
+    background_tasks.add_task(
+        log_transaction_and_check_alert, 
+        trans_sheet, timestamp, sku, item_name, action, amount, unit, threshold_val, new_quantity, payload.changeAmount
+    )
     
     return {"message": "Quantity updated", "new_quantity": new_quantity}
 
