@@ -359,3 +359,100 @@ select.form-input:hover {
   text-align: right;
 }
 
+
+/* Responsive Styles */
+.mobile-header {
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.logo-mobile {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--secondary);
+}
+.logo-mobile span {
+  color: var(--primary);
+}
+
+.mobile-only {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: flex !important;
+  }
+  
+  .mobile-header {
+    display: flex;
+  }
+
+  .app-container {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+  }
+
+  .main-content {
+    padding: 1rem;
+    padding-bottom: 3rem;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .page-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .table-container {
+    -webkit-overflow-scrolling: touch;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  
+  .calendar-weekday {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.75rem;
+  }
+  
+  .calendar-cell {
+    min-height: 70px;
+    padding: 0.25rem;
+  }
+  
+  .calendar-badge-in, .calendar-badge-out {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.25rem;
+  }
+}
+

@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, Activity, ScanLine, Settings, Check, X } from 'lucide-react';
+import { LayoutDashboard, Package, Activity, ScanLine, Settings, Check, X, Menu } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ItemHistoryCalendar from './ItemHistoryCalendar';
@@ -919,33 +919,41 @@ const OcrScanner = ({ items }) => {
   );
 };
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, setIsOpen }) => {
   const location = useLocation();
   const isActive = (path) => location.pathname === path ? 'active' : '';
 
   return (
-    <div className="sidebar">
-      <div className="logo">
-        DR. <span>SMILE</span>
+    <>
+      {/* Nền xám mờ khi mở menu trên mobile */}
+      {isOpen && <div className="sidebar-overlay" onClick={() => setIsOpen(false)}></div>}
+      
+      <div className={`sidebar ${isOpen ? 'open' : ''}`}>
+        <div className="logo" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>DR. <span>SMILE</span></div>
+          <button className="mobile-only btn" onClick={() => setIsOpen(false)} style={{ background: 'transparent', color: 'white', border: 'none', padding: 0 }}>
+            <X size={24} />
+          </button>
+        </div>
+        <nav>
+          <Link to="/" className={`nav-link ${isActive('/')}`} onClick={() => setIsOpen(false)}>
+            <LayoutDashboard size={20} /> Dashboard
+          </Link>
+          <Link to="/inventory" className={`nav-link ${isActive('/inventory')}`} onClick={() => setIsOpen(false)}>
+            <Package size={20} /> Kho vật tư
+          </Link>
+          <Link to="/transactions" className={`nav-link ${isActive('/transactions')}`} onClick={() => setIsOpen(false)}>
+            <Activity size={20} /> Lịch sử
+          </Link>
+          <Link to="/ocr" className={`nav-link ${isActive('/ocr')}`} onClick={() => setIsOpen(false)}>
+            <ScanLine size={20} /> Quét Hóa đơn
+          </Link>
+          <Link to="/settings" className={`nav-link ${isActive('/settings')}`} onClick={() => setIsOpen(false)}>
+            <Settings size={20} /> Cài đặt Hệ thống
+          </Link>
+        </nav>
       </div>
-      <nav>
-        <Link to="/" className={`nav-link ${isActive('/')}`}>
-          <LayoutDashboard size={20} /> Dashboard
-        </Link>
-        <Link to="/inventory" className={`nav-link ${isActive('/inventory')}`}>
-          <Package size={20} /> Kho vật tư
-        </Link>
-        <Link to="/transactions" className={`nav-link ${isActive('/transactions')}`}>
-          <Activity size={20} /> Lịch sử
-        </Link>
-        <Link to="/ocr" className={`nav-link ${isActive('/ocr')}`}>
-          <ScanLine size={20} /> Quét Hóa đơn
-        </Link>
-        <Link to="/settings" className={`nav-link ${isActive('/settings')}`}>
-          <Settings size={20} /> Cài đặt Hệ thống
-        </Link>
-      </nav>
-    </div>
+    </>
   );
 };
 
@@ -970,6 +978,8 @@ function App() {
     }
   };
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   useEffect(() => {
     // Tải lần đầu tiên ngay khi mở web
     fetchAllData();
@@ -986,8 +996,15 @@ function App() {
   return (
     <Router>
       <div className="app-container">
-        <Sidebar />
+        <Sidebar isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
         <main className="main-content">
+          <div className="mobile-header">
+            <button className="btn" onClick={() => setIsMobileMenuOpen(true)} style={{ background: 'transparent', border: 'none', padding: '0.5rem', display: 'flex', alignItems: 'center' }}>
+              <Menu size={24} color="var(--secondary)" />
+            </button>
+            <div className="logo-mobile">DR. <span>SMILE</span></div>
+            <div style={{ width: 40 }}></div>
+          </div>
           <Routes>
             <Route path="/" element={<Dashboard items={items} transactions={transactions} />} />
             <Route path="/inventory" element={<Inventory items={items} setItems={setItems} fetchItems={fetchAllData} />} />
