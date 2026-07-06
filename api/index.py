@@ -32,7 +32,12 @@ CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), '../credentials.json'
 
 def get_sheets():
     try:
-        gc = gspread.service_account(filename=CREDENTIALS_PATH)
+        google_creds = os.environ.get("GOOGLE_CREDENTIALS")
+        if google_creds:
+            creds_dict = json.loads(google_creds)
+            gc = gspread.service_account_from_dict(creds_dict)
+        else:
+            gc = gspread.service_account(filename=CREDENTIALS_PATH)
         sh = gc.open_by_key(SPREADSHEET_ID)
         # Lấy Sheet Danh mục (tìm sheet tên 'Data' hoặc 'data', nếu không có thì lấy sheet đầu tiên)
         items_sheet = None
