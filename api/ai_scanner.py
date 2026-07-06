@@ -5,13 +5,13 @@ from openai import OpenAI
 
 class InvoiceAI:
     def __init__(self):
-        # Khởi tạo client Gemini theo đúng thiết lập do người dùng cung cấp
-        api_key = os.getenv("ZENMUX_API_KEY")
+        # Khởi tạo client Groq (dùng thư viện OpenAI)
+        api_key = os.getenv("GROQ_API_KEY")
         self.client = OpenAI(
-            base_url="https://zenmux.ai/api/v1",
+            base_url="https://api.groq.com/openai/v1",
             api_key=api_key,
         )
-        self.model = "z-ai/glm-4.6v-flash-free"
+        self.model = "llama-3.2-90b-vision-preview"
 
     def process_image(self, image_path):
         """Đọc ảnh và gửi qua Gemini để bóc tách JSON trực tiếp"""
