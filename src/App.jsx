@@ -107,12 +107,12 @@ const Inventory = ({ items, setItems, fetchItems }) => {
   const filteredItems = useMemo(() => {
     return items.filter(i => {
       const lower = searchTerm.toLowerCase();
-      const matchSearch = !searchTerm || 
+      const matchSearch = !searchTerm ||
         (i.name && i.name.toLowerCase().includes(lower)) ||
         (i.sku && i.sku.toLowerCase().includes(lower));
-      
+
       const matchGroup = !selectedGroup || (i.group === selectedGroup);
-      
+
       return matchSearch && matchGroup;
     });
   }, [items, searchTerm, selectedGroup]);
@@ -180,7 +180,7 @@ const Inventory = ({ items, setItems, fetchItems }) => {
 
     // 1. Cập nhật UI ngay lập tức (Optimistic Update)
     if (setItems) {
-      setItems(prevItems => prevItems.map(item => 
+      setItems(prevItems => prevItems.map(item =>
         item.sku === sku ? { ...item, quantity: newQty } : item
       ));
     }
@@ -218,9 +218,9 @@ const Inventory = ({ items, setItems, fetchItems }) => {
   const handleSaveEdit = async (sku) => {
     // 1. Cập nhật UI ngay lập tức
     if (setItems) {
-      setItems(prevItems => prevItems.map(item => 
-        item.sku === sku ? { 
-          ...item, 
+      setItems(prevItems => prevItems.map(item =>
+        item.sku === sku ? {
+          ...item,
           name: editFormData.name,
           unit: editFormData.unit,
           minThreshold: editFormData.minThreshold
@@ -491,7 +491,7 @@ const Inventory = ({ items, setItems, fetchItems }) => {
             boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
           }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>
             </div>
             <h3 style={{ margin: '0 0 0.5rem 0', color: '#111827', fontSize: '1.25rem' }}>Lỗi giao dịch</h3>
             <p style={{ margin: '0 0 1.5rem 0', color: '#4B5563', lineHeight: 1.5 }}>
@@ -514,6 +514,46 @@ const Inventory = ({ items, setItems, fetchItems }) => {
 };
 
 const Transactions = ({ transactions, fetchItems }) => {
+  const [filterMonth, setFilterMonth] = useState('');
+  const [searchName, setSearchName] = useState('');
+  const [filterAction, setFilterAction] = useState('');
+  
+  const uniqueMonths = useMemo(() => {
+    const months = new Set();
+    transactions.forEach(t => {
+      if (t['Thời gian']) {
+        const monthStr = t['Thời gian'].substring(0, 7);
+        months.add(monthStr);
+      }
+    });
+    return Array.from(months).sort().reverse();
+  }, [transactions]);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      let matchMonth = true;
+      let matchName = true;
+      let matchAction = true;
+      
+      if (filterMonth && t['Thời gian']) {
+        matchMonth = t['Thời gian'].startsWith(filterMonth);
+      }
+      
+      if (searchName) {
+        const lowerSearch = searchName.toLowerCase();
+        const nameMatch = t['Tên hàng']?.toLowerCase().includes(lowerSearch);
+        const skuMatch = t['Mã hàng']?.toLowerCase().includes(lowerSearch);
+        matchName = nameMatch || skuMatch;
+      }
+      
+      if (filterAction) {
+        matchAction = t['Hành động'] === filterAction;
+      }
+      
+      return matchMonth && matchName && matchAction;
+    });
+  }, [transactions, filterMonth, searchName, filterAction]);
+
   return (
     <div>
       <div className="page-header">
@@ -523,6 +563,37 @@ const Transactions = ({ transactions, fetchItems }) => {
         </button>
       </div>
       <div className="card table-container">
+        <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Tìm theo Tên hàng hoặc Mã SKU..."
+            value={searchName}
+            onChange={(e) => setSearchName(e.target.value)}
+            style={{ maxWidth: '300px', flex: '1' }}
+          />
+          <select
+            className="form-input"
+            value={filterMonth}
+            onChange={(e) => setFilterMonth(e.target.value)}
+            style={{ maxWidth: '200px' }}
+          >
+            <option value="">Tất cả các tháng</option>
+            {uniqueMonths.map(m => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+          <select
+            className="form-input"
+            value={filterAction}
+            onChange={(e) => setFilterAction(e.target.value)}
+            style={{ maxWidth: '180px' }}
+          >
+            <option value="">Mọi hành động</option>
+            <option value="Nhập">Chỉ xem Nhập</option>
+            <option value="Xuất">Chỉ xem Xuất</option>
+          </select>
+        </div>
         <table>
           <thead>
             <tr>
@@ -534,7 +605,7 @@ const Transactions = ({ transactions, fetchItems }) => {
             </tr>
           </thead>
           <tbody>
-            {[...transactions].reverse().map((t, idx) => (
+            {[...filteredTransactions].reverse().map((t, idx) => (
               <tr key={idx}>
                 <td style={{ color: 'var(--text-muted)' }}>{t['Thời gian']}</td>
                 <td>
@@ -547,7 +618,7 @@ const Transactions = ({ transactions, fetchItems }) => {
                 <td style={{ fontWeight: '600' }}>{t['Số lượng']} {t['Đơn vị']}</td>
               </tr>
             ))}
-            {transactions.length === 0 && (
+            {filteredTransactions.length === 0 && (
               <tr>
                 <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>
                   Chưa có lịch sử giao dịch.
@@ -865,7 +936,7 @@ const Sidebar = () => {
           <Package size={20} /> Kho vật tư
         </Link>
         <Link to="/transactions" className={`nav-link ${isActive('/transactions')}`}>
-          <Activity size={20} /> Lịch sử Giao dịch
+          <Activity size={20} /> Lịch sử
         </Link>
         <Link to="/ocr" className={`nav-link ${isActive('/ocr')}`}>
           <ScanLine size={20} /> Quét Hóa đơn
