@@ -216,26 +216,35 @@ const Inventory = ({ items, setItems, fetchItems }) => {
   };
 
   const handleSaveEdit = async (sku) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/items/${sku}/details`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editFormData)
-      });
-      if (res.ok) {
-        setEditingSku(null);
-        await fetchItems();
-      } else {
+    // 1. Cập nhật UI ngay lập tức
+    if (setItems) {
+      setItems(prevItems => prevItems.map(item => 
+        item.sku === sku ? { 
+          ...item, 
+          name: editFormData.name,
+          unit: editFormData.unit,
+          minThreshold: editFormData.minThreshold
+        } : item
+      ));
+    }
+    setEditingSku(null);
+
+    // 2. Chạy ngầm gọi API
+    fetch(`/api/items/${sku}/details`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editFormData)
+    }).then(async res => {
+      if (!res.ok) {
         const data = await res.json();
         alert("Lỗi khi cập nhật: " + (data.detail || ""));
+        fetchItems(); // Lỗi thì tải lại số cũ
       }
-    } catch (error) {
+    }).catch(error => {
       console.error(error);
       alert("Lỗi kết nối Server.");
-    } finally {
-      setLoading(false);
-    }
+      fetchItems(); // Lỗi thì tải lại số cũ
+    });
   };
 
   return (
