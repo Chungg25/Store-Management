@@ -12,7 +12,6 @@ from dotenv import load_dotenv
 import tempfile
 import shutil
 from api.ai_scanner import InvoiceAI
-from api.drive_service import DriveService
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'))
 
@@ -237,16 +236,12 @@ async def process_ocr(file: UploadFile = File(...)):
             except Exception:
                 pass
 
-# Initialize Drive Service Globally
-drive_service = None
+
 
 @app.post("/api/save-ocr")
 async def save_ocr(data: str = Form(...)):
     try:
-        # Xử lý phần dữ liệu
-        parsed_data = json.loads(data)
-
-        # 2. Xử lý phần dữ liệu (Dữ liệu đã được người dùng chỉnh sửa)
+        # Xử lý phần dữ liệu (Dữ liệu đã được người dùng chỉnh sửa)
         parsed_data = json.loads(data)
         
         # Cập nhật số lượng vào Google Sheets

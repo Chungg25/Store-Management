@@ -1,9 +1,6 @@
 import json
 import os
 import base64
-import PIL.Image
-from google import genai
-from google.genai import types
 from openai import OpenAI
 
 class InvoiceAI:
