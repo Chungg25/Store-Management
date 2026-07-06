@@ -251,7 +251,9 @@ const Inventory = ({ items, setItems, fetchItems }) => {
   const handleExportTotal = () => {
     const data = items.map(item => ({
       'Tên vật tư': item.name,
-      'Số lượng': item.quantity
+      'Đơn vị tính': item.unit,
+      'Tồn kho': item.quantity,
+      'Số lượng': '' // Để trống cho nhân viên tự điền khi kiểm kho
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
