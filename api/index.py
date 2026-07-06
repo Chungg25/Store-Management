@@ -99,7 +99,8 @@ def send_alert_email(item_name: str, quantity: int, unit: str, threshold: int):
         server.starttls()
         server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
         text = msg.as_string()
-        server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, text)
+        receiver_emails = [email.strip() for email in EMAIL_RECEIVER.split(',')]
+        server.sendmail(EMAIL_SENDER, receiver_emails, text)
         server.quit()
     except Exception as e:
         print(f"Failed to send email: {e}")
@@ -202,7 +203,8 @@ def generate_and_send_daily_report():
         server.starttls()
         server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
         text = msg.as_string()
-        server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, text)
+        receiver_emails = [email.strip() for email in EMAIL_RECEIVER.split(',')]
+        server.sendmail(EMAIL_SENDER, receiver_emails, text)
         server.quit()
         return {"status": "ok", "message": f"Sent report for {len(low_stock_items)} items."}
     except Exception as e:
