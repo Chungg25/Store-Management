@@ -13,6 +13,13 @@ import tempfile
 import shutil
 from api.ai_scanner import InvoiceAI
 
+try:
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    import pytz
+    SCHEDULER_AVAILABLE = True
+except ImportError:
+    SCHEDULER_AVAILABLE = False
+
 load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'))
 
 app = FastAPI()
@@ -95,6 +102,127 @@ def send_alert_email(item_name: str, quantity: int, unit: str, threshold: int):
         server.quit()
     except Exception as e:
         print(f"Failed to send email: {e}")
+
+def generate_and_send_daily_report():
+    if not EMAIL_APP_PASSWORD or EMAIL_SENDER == "example@gmail.com":
+        print("Daily report skipped: Email not configured")
+        return {"status": "skipped", "reason": "Email not configured"}
+
+    items_sheet, _ = get_sheets()
+    if not items_sheet:
+        return {"status": "error", "reason": "Cannot connect to Google Sheets"}
+        
+    records = items_sheet.get_all_records()
+    low_stock_items = []
+    
+    for row in records:
+        if not row.get("Mã hàng"): continue
+        try: qty = int(row.get("Số lượng", 0) or 0)
+        except ValueError: qty = 0
+        try: threshold = int(row.get("Hạn mức", 0) or 0)
+        except ValueError: threshold = 0
+        
+        if threshold > 0 and qty <= threshold:
+            low_stock_items.append({
+                "sku": row.get("Mã hàng"),
+                "name": row.get("Tên hàng"),
+                "unit": row.get("ĐVT"),
+                "quantity": qty,
+                "threshold": threshold
+            })
+            
+    if not low_stock_items:
+        print("Daily report: All items are sufficiently stocked.")
+        return {"status": "ok", "message": "No items need restocking"}
+
+    # Generate HTML Table
+    table_rows = ""
+    for idx, item in enumerate(low_stock_items):
+        bg_color = "#ffffff" if idx % 2 == 0 else "#f9fafb"
+        table_rows += f"""
+        <tr style="background-color: {bg_color};">
+            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">{item['sku']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: bold; color: #1f2937;">{item['name']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #ef4444; font-weight: bold;">{item['quantity']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">{item['threshold']}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">{item['unit']}</td>
+        </tr>
+        """
+
+    today_str = datetime.now().strftime("%d/%m/%Y")
+    
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            <div style="background-color: #1597E5; padding: 20px; text-align: center; color: white;">
+                <h2 style="margin: 0; font-size: 24px;">Báo Cáo Tồn Kho Dr. Smile</h2>
+                <p style="margin: 5px 0 0 0; opacity: 0.9;">Tự động tạo lúc 8:00 Sáng - Ngày {today_str}</p>
+            </div>
+            <div style="padding: 20px;">
+                <p style="font-size: 16px; color: #374151;">Xin chào Quản lý Kho,</p>
+                <p style="font-size: 16px; color: #374151;">Hệ thống ghi nhận có <strong>{len(low_stock_items)}</strong> vật tư đã cạn kiệt hoặc chạm mức tối thiểu. Vui lòng xem danh sách bên dưới và lên kế hoạch nhập hàng:</p>
+                
+                <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                    <thead>
+                        <tr style="background-color: #f3f4f6;">
+                            <th style="padding: 10px; text-align: left; font-size: 14px; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Mã hàng</th>
+                            <th style="padding: 10px; text-align: left; font-size: 14px; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Tên vật tư</th>
+                            <th style="padding: 10px; text-align: left; font-size: 14px; color: #ef4444; border-bottom: 2px solid #e5e7eb;">Tồn kho</th>
+                            <th style="padding: 10px; text-align: left; font-size: 14px; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Hạn mức</th>
+                            <th style="padding: 10px; text-align: left; font-size: 14px; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Đơn vị</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {table_rows}
+                    </tbody>
+                </table>
+                
+                <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+                    <p style="margin: 0;">Email này được gửi tự động từ Hệ thống Quản lý Kho Dr. Smile.</p>
+                </div>
+            </div>
+        </div>
+      </body>
+    </html>
+    """
+    
+    subject = f"🔔 Báo cáo Nhập hàng tự động - Ngày {today_str}"
+    msg = MIMEMultipart('alternative')
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = EMAIL_SENDER
+    msg['Subject'] = subject
+    
+    msg.attach(MIMEText("Vui lòng mở email bằng trình duyệt hỗ trợ HTML.", 'plain'))
+    msg.attach(MIMEText(html_body, 'html'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
+        text = msg.as_string()
+        server.sendmail(EMAIL_SENDER, EMAIL_SENDER, text)
+        server.quit()
+        return {"status": "ok", "message": f"Sent report for {len(low_stock_items)} items."}
+    except Exception as e:
+        print(f"Failed to send daily report email: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.on_event("startup")
+def setup_cron():
+    if SCHEDULER_AVAILABLE:
+        scheduler = AsyncIOScheduler()
+        tz = pytz.timezone('Asia/Ho_Chi_Minh')
+        scheduler.add_job(generate_and_send_daily_report, 'cron', hour=8, minute=0, timezone=tz)
+        scheduler.start()
+        print("Background cron scheduler started (08:00 AM VN Time).")
+    else:
+        print("APScheduler not installed. Internal cron is disabled.")
+
+@app.get("/api/cron/daily-report")
+def trigger_daily_report(background_tasks: BackgroundTasks):
+    background_tasks.add_task(generate_and_send_daily_report)
+    return {"status": "processing", "message": "Báo cáo đang được tạo và sẽ gửi qua email."}
 
 @app.get("/api/health")
 def health_check():
