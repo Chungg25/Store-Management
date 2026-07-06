@@ -467,6 +467,8 @@ const Inventory = ({ items, fetchItems }) => {
             </button>
           </div>
         </div>
+      )}
+
       {popupError && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
