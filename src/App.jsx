@@ -3,6 +3,7 @@ import { LayoutDashboard, Package, Activity, ScanLine, Settings, Check, X, Menu 
 import { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ItemHistoryCalendar from './ItemHistoryCalendar';
+import * as XLSX from 'xlsx';
 import './index.css';
 
 const getGroupColor = (groupName) => {
@@ -247,13 +248,46 @@ const Inventory = ({ items, setItems, fetchItems }) => {
     });
   };
 
+  const handleExportTotal = () => {
+    const data = items.map(item => ({
+      'Tên vật tư': item.name,
+      'Số lượng': item.quantity
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tong_Vat_Tu");
+    XLSX.writeFile(workbook, "Tong_Vat_Tu.xlsx");
+  };
+
+  const handleExportLowStock = () => {
+    const lowStockItems = items.filter(item => item.quantity <= item.minThreshold);
+    const data = lowStockItems.map(item => ({
+      'Tên vật tư': item.name,
+      'Tồn kho': item.quantity,
+      'Hạn mức': item.minThreshold,
+      'Đơn vị': item.unit
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Vat_Tu_Can_Nhap");
+    XLSX.writeFile(workbook, "Vat_Tu_Can_Nhap.xlsx");
+  };
+
   return (
     <div>
       <div className="page-header">
         <h2>Quản lý vật tư</h2>
-        <button className="btn btn-primary" onClick={fetchItems} disabled={loading}>
-          {loading ? "Đang tải..." : "Làm mới dữ liệu"}
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary" onClick={handleExportTotal} style={{ backgroundColor: '#10B981', color: 'white', border: 'none' }}>
+            Xuất tổng vật tư
+          </button>
+          <button className="btn btn-secondary" onClick={handleExportLowStock} style={{ backgroundColor: '#EF4444', color: 'white', border: 'none' }}>
+            Xuất vật tư cần nhập
+          </button>
+          <button className="btn btn-primary" onClick={fetchItems} disabled={loading}>
+            {loading ? "Đang tải..." : "Làm mới dữ liệu"}
+          </button>
+        </div>
       </div>
       <div className="card table-container">
         <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>

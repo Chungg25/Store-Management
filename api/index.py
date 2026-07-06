@@ -1,7 +1,6 @@
 import os
 import json
 import smtplib
-import requests
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -37,7 +36,6 @@ SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID")
 EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "example@gmail.com")
 EMAIL_RECEIVER = os.environ.get("EMAIL_RECEIVER") or EMAIL_SENDER
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD")
-GOOGLE_MAIL_SCRIPT_URL = os.environ.get("GOOGLE_MAIL_SCRIPT_URL")
 CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), '../credentials.json')
 
 def get_sheets():
@@ -90,33 +88,22 @@ def send_alert_email(item_name: str, quantity: int, unit: str, threshold: int):
     Hệ thống Quản lý Kho Dr. Smile
     """
     
-    if GOOGLE_MAIL_SCRIPT_URL:
-        try:
-            payload = {
-                "to": EMAIL_RECEIVER,
-                "subject": subject,
-                "htmlBody": body.replace('\n', '<br>')
-            }
-            requests.post(GOOGLE_MAIL_SCRIPT_URL, json=payload, timeout=10)
-        except Exception as e:
-            print(f"Failed to send webhook email: {e}")
-    else:
-        # Fallback to SMTP if webhook not configured
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_SENDER
-        msg['To'] = EMAIL_RECEIVER
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
-        try:
-            server = smtplib.SMTP('smtp.gmail.com', 587)
-            server.starttls()
-            server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
-            text = msg.as_string()
-            receiver_emails = [email.strip() for email in EMAIL_RECEIVER.split(',')]
-            server.sendmail(EMAIL_SENDER, receiver_emails, text)
-            server.quit()
-        except Exception as e:
-            print(f"Failed to send email: {e}")
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = EMAIL_RECEIVER
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
+        text = msg.as_string()
+        receiver_emails = [email.strip() for email in EMAIL_RECEIVER.split(',')]
+        server.sendmail(EMAIL_SENDER, receiver_emails, text)
+        server.quit()
+    except Exception as e:
+        print(f"Failed to send email: {e}")
 
 def generate_and_send_daily_report():
     if not EMAIL_APP_PASSWORD or EMAIL_SENDER == "example@gmail.com":
@@ -204,40 +191,26 @@ def generate_and_send_daily_report():
     """
     
     subject = f"🔔 Báo cáo Nhập hàng tự động - Ngày {today_str}"
-    if GOOGLE_MAIL_SCRIPT_URL:
-        try:
-            payload = {
-                "to": EMAIL_RECEIVER,
-                "subject": subject,
-                "htmlBody": html_body
-            }
-            response = requests.post(GOOGLE_MAIL_SCRIPT_URL, json=payload, timeout=15)
-            return {"status": "ok", "message": f"Sent report via Webhook for {len(low_stock_items)} items. Response: {response.text}"}
-        except Exception as e:
-            print(f"Failed to send daily report via Webhook: {e}")
-            return {"status": "error", "message": f"Webhook Error: {str(e)}"}
-    else:
-        # Fallback to SMTP
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_SENDER
-        msg['To'] = EMAIL_RECEIVER
-        msg['Subject'] = subject
-        
-        msg.attach(MIMEText("Vui lòng mở email bằng trình duyệt hỗ trợ HTML.", 'plain'))
-        msg.attach(MIMEText(html_body, 'html'))
+    msg = MIMEMultipart('alternative')
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = EMAIL_RECEIVER
+    msg['Subject'] = subject
+    
+    msg.attach(MIMEText("Vui lòng mở email bằng trình duyệt hỗ trợ HTML.", 'plain'))
+    msg.attach(MIMEText(html_body, 'html'))
 
-        try:
-            server = smtplib.SMTP('smtp.gmail.com', 587)
-            server.starttls()
-            server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
-            text = msg.as_string()
-            receiver_emails = [email.strip() for email in EMAIL_RECEIVER.split(',')]
-            server.sendmail(EMAIL_SENDER, receiver_emails, text)
-            server.quit()
-            return {"status": "ok", "message": f"Sent report via SMTP for {len(low_stock_items)} items."}
-        except Exception as e:
-            print(f"Failed to send daily report email: {e}")
-            return {"status": "error", "message": f"SMTP Error: {str(e)}"}
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
+        text = msg.as_string()
+        receiver_emails = [email.strip() for email in EMAIL_RECEIVER.split(',')]
+        server.sendmail(EMAIL_SENDER, receiver_emails, text)
+        server.quit()
+        return {"status": "ok", "message": f"Sent report for {len(low_stock_items)} items."}
+    except Exception as e:
+        print(f"Failed to send daily report email: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.on_event("startup")
 def setup_cron():
