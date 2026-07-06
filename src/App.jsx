@@ -94,6 +94,7 @@ const Inventory = ({ items, fetchItems }) => {
   const [transactionSku, setTransactionSku] = useState(null);
   const [transactionType, setTransactionType] = useState(null);
   const [transactionQty, setTransactionQty] = useState(1);
+  const [popupError, setPopupError] = useState('');
   const itemsPerPage = 10;
 
   const uniqueGroups = useMemo(() => {
@@ -165,7 +166,7 @@ const Inventory = ({ items, fetchItems }) => {
     if (transactionQty <= 0) return;
     const amount = transactionType === 'Nhập' ? transactionQty : -transactionQty;
     if (item.quantity + amount < 0) {
-      alert("Số lượng tồn kho không đủ!");
+      setPopupError(`Không đủ số lượng để xuất! Hiện tại chỉ còn ${item.quantity} ${item.unit || 'sản phẩm'}.`);
       return;
     }
     await handleUpdateQuantity(item.sku, item.quantity, amount);
@@ -463,6 +464,33 @@ const Inventory = ({ items, fetchItems }) => {
               disabled={currentPage === totalPages}
             >
               Trang sau
+            </button>
+          </div>
+        </div>
+      {popupError && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: 'white', padding: '2rem', borderRadius: '12px', maxWidth: '400px', width: '90%', textAlign: 'center',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            </div>
+            <h3 style={{ margin: '0 0 0.5rem 0', color: '#111827', fontSize: '1.25rem' }}>Lỗi giao dịch</h3>
+            <p style={{ margin: '0 0 1.5rem 0', color: '#4B5563', lineHeight: 1.5 }}>
+              {popupError}
+            </p>
+            <button
+              onClick={() => setPopupError('')}
+              style={{
+                background: 'var(--primary)', color: 'white', border: 'none', padding: '0.75rem 1.5rem',
+                borderRadius: '6px', fontWeight: '500', cursor: 'pointer', width: '100%'
+              }}
+            >
+              Đã hiểu
             </button>
           </div>
         </div>
