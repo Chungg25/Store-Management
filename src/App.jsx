@@ -87,21 +87,30 @@ const Inventory = ({ items, fetchItems }) => {
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [editingSku, setEditingSku] = useState(null);
   const [editFormData, setEditFormData] = useState({ name: '', unit: '', minThreshold: 0 });
   const itemsPerPage = 10;
 
-  // Lọc dữ liệu theo Tên hoặc SKU
+  const uniqueGroups = useMemo(() => {
+    const groups = new Set(items.map(i => i.group).filter(Boolean));
+    return Array.from(groups).sort();
+  }, [items]);
+
+  // Lọc dữ liệu theo Tên, SKU và Nhóm
   const filteredItems = useMemo(() => {
-    if (!searchTerm) return items;
-    const lower = searchTerm.toLowerCase();
-    return items.filter(i =>
-      (i.name && i.name.toLowerCase().includes(lower)) ||
-      (i.sku && i.sku.toLowerCase().includes(lower)) ||
-      (i.group && i.group.toLowerCase().includes(lower))
-    );
-  }, [items, searchTerm]);
+    return items.filter(i => {
+      const lower = searchTerm.toLowerCase();
+      const matchSearch = !searchTerm || 
+        (i.name && i.name.toLowerCase().includes(lower)) ||
+        (i.sku && i.sku.toLowerCase().includes(lower));
+      
+      const matchGroup = !selectedGroup || (i.group === selectedGroup);
+      
+      return matchSearch && matchGroup;
+    });
+  }, [items, searchTerm, selectedGroup]);
 
   // Sắp xếp dữ liệu
   const sortedItems = useMemo(() => {
@@ -212,15 +221,26 @@ const Inventory = ({ items, fetchItems }) => {
         </button>
       </div>
       <div className="card table-container">
-        <div style={{ marginBottom: '1rem' }}>
+        <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <input
             type="text"
-            placeholder="Tìm kiếm Tên vật tư, SKU hoặc Nhóm..."
+            placeholder="Tìm kiếm Tên vật tư hoặc SKU..."
             className="form-input"
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            style={{ maxWidth: '400px' }}
+            style={{ maxWidth: '400px', flex: '1' }}
           />
+          <select
+            className="form-input"
+            value={selectedGroup}
+            onChange={(e) => { setSelectedGroup(e.target.value); setCurrentPage(1); }}
+            style={{ maxWidth: '200px' }}
+          >
+            <option value="">Tất cả các nhóm</option>
+            {uniqueGroups.map(g => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
         </div>
         <table>
           <thead>
