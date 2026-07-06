@@ -34,6 +34,7 @@ app.add_middleware(
 
 SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID")
 EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "example@gmail.com")
+EMAIL_RECEIVER = os.environ.get("EMAIL_RECEIVER") or EMAIL_SENDER
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD")
 CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), '../credentials.json')
 
@@ -89,7 +90,7 @@ def send_alert_email(item_name: str, quantity: int, unit: str, threshold: int):
     
     msg = MIMEMultipart()
     msg['From'] = EMAIL_SENDER
-    msg['To'] = EMAIL_SENDER
+    msg['To'] = EMAIL_RECEIVER
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
 
@@ -98,7 +99,7 @@ def send_alert_email(item_name: str, quantity: int, unit: str, threshold: int):
         server.starttls()
         server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
         text = msg.as_string()
-        server.sendmail(EMAIL_SENDER, EMAIL_SENDER, text)
+        server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, text)
         server.quit()
     except Exception as e:
         print(f"Failed to send email: {e}")
@@ -190,7 +191,7 @@ def generate_and_send_daily_report():
     subject = f"🔔 Báo cáo Nhập hàng tự động - Ngày {today_str}"
     msg = MIMEMultipart('alternative')
     msg['From'] = EMAIL_SENDER
-    msg['To'] = EMAIL_SENDER
+    msg['To'] = EMAIL_RECEIVER
     msg['Subject'] = subject
     
     msg.attach(MIMEText("Vui lòng mở email bằng trình duyệt hỗ trợ HTML.", 'plain'))
@@ -201,7 +202,7 @@ def generate_and_send_daily_report():
         server.starttls()
         server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
         text = msg.as_string()
-        server.sendmail(EMAIL_SENDER, EMAIL_SENDER, text)
+        server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, text)
         server.quit()
         return {"status": "ok", "message": f"Sent report for {len(low_stock_items)} items."}
     except Exception as e:
