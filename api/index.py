@@ -224,9 +224,9 @@ def setup_cron():
         print("APScheduler not installed. Internal cron is disabled.")
 
 @app.get("/api/cron/daily-report")
-def trigger_daily_report(background_tasks: BackgroundTasks):
-    background_tasks.add_task(generate_and_send_daily_report)
-    return {"status": "processing", "message": "Báo cáo đang được tạo và sẽ gửi qua email."}
+def trigger_daily_report():
+    result = generate_and_send_daily_report()
+    return result
 
 @app.get("/api/health")
 def health_check():
