@@ -1,0 +1,14 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Chạy mỗi 14 phút (Từ 0h đến 12h UTC tương đương 7h sáng đến 7h tối giờ VN)
+    - cron: '*/14 0-12 * * *'
+  workflow_dispatch: # Cho phép chạy thủ công
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API
+        run: curl -s https://dr-smile-api-prod-kam4.onrender.com/api/health
