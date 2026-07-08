@@ -2,8 +2,8 @@ name: Keep Render Alive
 
 on:
   schedule:
-    # Chạy mỗi 14 phút (Từ 0h đến 12h UTC tương đương 7h sáng đến 7h tối giờ VN)
-    - cron: '*/14 0-12 * * *'
+    # Chạy mỗi 15 phút (24/7)
+    - cron: '*/15 * * * *'
   workflow_dispatch: # Cho phép chạy thủ công
 
 jobs:
