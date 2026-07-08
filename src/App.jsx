@@ -85,7 +85,7 @@ const Dashboard = ({ items, transactions }) => {
   );
 };
 
-const Inventory = ({ items, setItems, fetchItems }) => {
+const Inventory = ({ items, setItems, fetchItems, transactions }) => {
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,6 +97,9 @@ const Inventory = ({ items, setItems, fetchItems }) => {
   const [transactionType, setTransactionType] = useState(null);
   const [transactionQty, setTransactionQty] = useState(1);
   const [popupError, setPopupError] = useState('');
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportStartMonth, setReportStartMonth] = useState('');
+  const [reportEndMonth, setReportEndMonth] = useState('');
   const itemsPerPage = 10;
 
   const uniqueGroups = useMemo(() => {
@@ -275,6 +278,80 @@ const Inventory = ({ items, setItems, fetchItems }) => {
     XLSX.writeFile(workbook, "Vat_Tu_Can_Nhap.xlsx");
   };
 
+  const handleExportReport = () => {
+    if (!reportStartMonth || !reportEndMonth) {
+      alert("Vui lòng chọn đầy đủ tháng bắt đầu và kết thúc!");
+      return;
+    }
+    
+    const startDate = new Date(`${reportStartMonth}-01T00:00:00`);
+    const [endYear, endMonth] = reportEndMonth.split('-');
+    const endDate = new Date(Number(endYear), Number(endMonth), 0, 23, 59, 59);
+
+    if (startDate > endDate) {
+      alert("Tháng bắt đầu không thể lớn hơn tháng kết thúc!");
+      return;
+    }
+
+    const reportData = items.map(item => {
+      let qtyEnd = item.quantity;
+      const itemTrans = transactions.filter(t => t['Mã hàng'] === item.sku);
+
+      // Nghịch đảo giao dịch sau endDate để tìm Tồn cuối kỳ (tại thời điểm endDate)
+      const transAfterEnd = itemTrans.filter(t => {
+        const tDate = new Date(t['Thời gian'].replace(' ', 'T'));
+        return tDate > endDate;
+      });
+
+      transAfterEnd.forEach(t => {
+        const amt = Number(t['Số lượng']) || 0;
+        if (t['Hành động'] === 'Nhập') {
+          qtyEnd -= amt;
+        } else if (t['Hành động'] === 'Xuất') {
+          qtyEnd += amt;
+        }
+      });
+
+      // Lọc các giao dịch trong kỳ để tìm Tổng Nhập/Xuất và Tồn đầu kỳ
+      const transDuring = itemTrans.filter(t => {
+        const tDate = new Date(t['Thời gian'].replace(' ', 'T'));
+        return tDate >= startDate && tDate <= endDate;
+      });
+
+      let totalIn = 0;
+      let totalOut = 0;
+      let qtyStart = qtyEnd;
+
+      transDuring.forEach(t => {
+        const amt = Number(t['Số lượng']) || 0;
+        if (t['Hành động'] === 'Nhập') {
+          totalIn += amt;
+          qtyStart -= amt; // Trừ đi nhập để lùi về tồn đầu
+        } else if (t['Hành động'] === 'Xuất') {
+          totalOut += amt;
+          qtyStart += amt; // Cộng thêm xuất để lùi về tồn đầu
+        }
+      });
+
+      return {
+        'Mã hàng (SKU)': item.sku,
+        'Tên vật tư': item.name,
+        'Đơn vị tính': item.unit,
+        'Tồn đầu kỳ': qtyStart,
+        'Tổng nhập': totalIn,
+        'Tổng xuất': totalOut,
+        'Tồn cuối kỳ': qtyEnd
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(reportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Xuat_Nhap_Ton");
+    XLSX.writeFile(workbook, `Bao_Cao_XNT_${reportStartMonth}_den_${reportEndMonth}.xlsx`);
+    
+    setShowReportModal(false);
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -285,6 +362,9 @@ const Inventory = ({ items, setItems, fetchItems }) => {
           </button>
           <button className="btn btn-secondary" onClick={handleExportLowStock} style={{ backgroundColor: '#EF4444', color: 'white', border: 'none' }}>
             Xuất vật tư cần nhập
+          </button>
+          <button className="btn btn-secondary" onClick={() => setShowReportModal(true)} style={{ backgroundColor: '#3B82F6', color: 'white', border: 'none' }}>
+            Báo cáo Xuất Nhập Tồn
           </button>
           <button className="btn btn-primary" onClick={fetchItems} disabled={loading}>
             {loading ? "Đang tải..." : "Làm mới dữ liệu"}
@@ -664,6 +744,29 @@ const Transactions = ({ transactions, fetchItems }) => {
           </tbody>
         </table>
       </div>
+
+      {/* Modal Báo cáo Xuất Nhập Tồn */}
+      {showReportModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <h3>Báo cáo Xuất Nhập Tồn</h3>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexDirection: 'column' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Từ tháng:</label>
+                <input type="month" className="form-input" value={reportStartMonth} onChange={(e) => setReportStartMonth(e.target.value)} style={{ width: '100%' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Đến tháng:</label>
+                <input type="month" className="form-input" value={reportEndMonth} onChange={(e) => setReportEndMonth(e.target.value)} style={{ width: '100%' }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem' }}>
+              <button className="btn btn-secondary" onClick={() => setShowReportModal(false)}>Hủy</button>
+              <button className="btn btn-primary" onClick={handleExportReport} style={{ backgroundColor: '#3B82F6' }}>Xuất Excel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1043,7 +1146,7 @@ function App() {
           </div>
           <Routes>
             <Route path="/" element={<Dashboard items={items} transactions={transactions} />} />
-            <Route path="/inventory" element={<Inventory items={items} setItems={setItems} fetchItems={fetchAllData} />} />
+            <Route path="/inventory" element={<Inventory items={items} setItems={setItems} fetchItems={fetchAllData} transactions={transactions} />} />
             <Route path="/item/:sku" element={<ItemHistoryCalendar items={items} transactions={transactions} />} />
             <Route path="/transactions" element={<Transactions transactions={transactions} fetchItems={fetchAllData} />} />
             <Route path="/ocr" element={<OcrScanner items={items} />} />

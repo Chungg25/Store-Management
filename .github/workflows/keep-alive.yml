@@ -12,3 +12,4 @@ jobs:
     steps:
       - name: Ping API
         run: curl -s https://dr-smile-api-prod-kam4.onrender.com/api/health
+ 
