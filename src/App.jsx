@@ -1250,12 +1250,35 @@ const applyExcelStyle = (worksheet, data) => {
     };
   }
   
+  // Nhận diện cột Nhập/Xuất để đổi màu chữ
+  const headerTypes = {};
+  for (let C = range.s.c; C <= range.e.c; ++C) {
+    const address = XLSX.utils.encode_col(C) + "1";
+    if (worksheet[address] && worksheet[address].v) {
+       const val = worksheet[address].v.toString().toLowerCase();
+       if (val.includes("nhập")) headerTypes[C] = "nhap";
+       else if (val.includes("xuất")) headerTypes[C] = "xuat";
+    }
+  }
+
   // Format Data Rows
   for (let R = range.s.r + 1; R <= range.e.r; ++R) {
     for (let C = range.s.c; C <= range.e.c; ++C) {
       const address = XLSX.utils.encode_col(C) + (R + 1);
       if (!worksheet[address]) continue;
+      
+      let fontColor = "111827"; // mặc định xám đen
+      let isBold = false;
+      if (headerTypes[C] === "nhap") {
+          fontColor = "15803D"; // xanh lá đậm
+          isBold = true;
+      } else if (headerTypes[C] === "xuat") {
+          fontColor = "B91C1C"; // đỏ đậm
+          isBold = true;
+      }
+      
       worksheet[address].s = {
+        font: { color: { rgb: fontColor }, bold: isBold },
         border: {
           top: { style: "thin", color: { rgb: "E5E7EB" } },
           bottom: { style: "thin", color: { rgb: "E5E7EB" } },
