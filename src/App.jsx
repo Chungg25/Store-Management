@@ -367,8 +367,6 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Xuat_Nhap_Ton");
     XLSX.writeFile(workbook, `Bao_Cao_XNT_${reportStartMonth}_den_${reportEndMonth}.xlsx`);
-    
-    setShowReportModal(false);
   };
 
   return (
@@ -382,13 +380,28 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
           <button className="btn btn-secondary" onClick={handleExportLowStock} style={{ backgroundColor: '#EF4444', color: 'white', border: 'none' }}>
             Xuất vật tư cần nhập
           </button>
-          <button className="btn btn-secondary" onClick={() => setShowReportModal(true)} style={{ backgroundColor: '#3B82F6', color: 'white', border: 'none' }}>
-            Báo cáo Xuất Nhập Tồn
-          </button>
           <button className="btn btn-primary" onClick={fetchItems} disabled={loading}>
             {loading ? "Đang tải..." : "Làm mới dữ liệu"}
           </button>
         </div>
+      </div>
+      
+      <div className="card" style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+        <h3 style={{ margin: 0, marginRight: 'auto', fontSize: '1rem', color: '#1E293B', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          Báo cáo Xuất Nhập Tồn:
+        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <label style={{ fontWeight: '500', fontSize: '0.875rem' }}>Từ tháng:</label>
+          <input type="month" className="form-input" value={reportStartMonth} onChange={(e) => setReportStartMonth(e.target.value)} style={{ padding: '0.35rem 0.5rem' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <label style={{ fontWeight: '500', fontSize: '0.875rem' }}>Đến tháng:</label>
+          <input type="month" className="form-input" value={reportEndMonth} onChange={(e) => setReportEndMonth(e.target.value)} style={{ padding: '0.35rem 0.5rem' }} />
+        </div>
+        <button className="btn btn-primary" onClick={handleExportReport} style={{ backgroundColor: '#3B82F6', padding: '0.4rem 1rem' }}>
+          Tải Excel
+        </button>
       </div>
       <div className="card table-container">
         <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -641,29 +654,6 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
             >
               Đã hiểu
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Báo cáo Xuất Nhập Tồn */}
-      {showReportModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <h3>Báo cáo Xuất Nhập Tồn</h3>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexDirection: 'column' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Từ tháng:</label>
-                <input type="month" className="form-input" value={reportStartMonth} onChange={(e) => setReportStartMonth(e.target.value)} style={{ width: '100%' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Đến tháng:</label>
-                <input type="month" className="form-input" value={reportEndMonth} onChange={(e) => setReportEndMonth(e.target.value)} style={{ width: '100%' }} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem' }}>
-              <button className="btn btn-secondary" onClick={() => setShowReportModal(false)}>Hủy</button>
-              <button className="btn btn-primary" onClick={handleExportReport} style={{ backgroundColor: '#3B82F6' }}>Xuất Excel</button>
-            </div>
           </div>
         </div>
       )}
