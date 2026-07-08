@@ -85,7 +85,8 @@ const Dashboard = ({ items, transactions }) => {
   );
 };
 
-const Inventory = ({ type = "quan_trong", title = "Kho vật tư", items, setItems, fetchItems, transactions }) => {
+const Inventory = ({ items, setItems, fetchItems, transactions }) => {
+  const [showImportantOnly, setShowImportantOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,6 +111,8 @@ const Inventory = ({ type = "quan_trong", title = "Kho vật tư", items, setIte
   // Lọc dữ liệu theo Tên, SKU và Nhóm
   const filteredItems = useMemo(() => {
     return items.filter(i => {
+      if (showImportantOnly && !i.isImportant) return false;
+      
       const lower = searchTerm.toLowerCase();
       const matchSearch = !searchTerm ||
         (i.name && i.name.toLowerCase().includes(lower)) ||
@@ -119,7 +122,7 @@ const Inventory = ({ type = "quan_trong", title = "Kho vật tư", items, setIte
 
       return matchSearch && matchGroup;
     });
-  }, [items, searchTerm, selectedGroup]);
+  }, [items, searchTerm, selectedGroup, showImportantOnly]);
 
   // Sắp xếp dữ liệu
   const sortedItems = useMemo(() => {
@@ -193,7 +196,7 @@ const Inventory = ({ type = "quan_trong", title = "Kho vật tư", items, setIte
     fetch(`/api/items/${sku}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quantity: newQty, changeAmount: amount, type: type })
+      body: JSON.stringify({ quantity: newQty, changeAmount: amount })
     }).then(async res => {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -238,7 +241,7 @@ const Inventory = ({ type = "quan_trong", title = "Kho vật tư", items, setIte
     fetch(`/api/items/${sku}/details`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...editFormData, type: type })
+      body: JSON.stringify({ ...editFormData })
     }).then(async res => {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -908,8 +911,7 @@ const OcrScanner = ({ items }) => {
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('data', JSON.stringify(ocrData.data));
-    formData.append('type', 'tong_kho');
-
+    
     try {
       const res = await fetch('/api/save-ocr', {
         method: 'POST',
@@ -1186,11 +1188,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           <Link to="/" className={`nav-link ${isActive('/')}`} onClick={() => setIsOpen(false)}>
             <LayoutDashboard size={20} /> Dashboard
           </Link>
-          <Link to="/tong-kho" className={`nav-link ${isActive('/tong-kho')}`} onClick={() => setIsOpen(false)}>
-            <Package size={20} /> Tổng kho
-          </Link>
           <Link to="/inventory" className={`nav-link ${isActive('/inventory')}`} onClick={() => setIsOpen(false)}>
-            <Package size={20} /> Vật tư quan trọng
+            <Package size={20} /> Kho vật tư
           </Link>
           <Link to="/transactions" className={`nav-link ${isActive('/transactions')}`} onClick={() => setIsOpen(false)}>
             <Activity size={20} /> Lịch sử
@@ -1208,30 +1207,21 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 };
 
 function App() {
-  const [itemsQuanTrong, setItemsQuanTrong] = useState([]);
-  const [transQuanTrong, setTransQuanTrong] = useState([]);
-  
-  const [itemsTongKho, setItemsTongKho] = useState([]);
-  const [transTongKho, setTransTongKho] = useState([]);
+  const [items, setItems] = useState([]);
+  const [transactions, setTransactions] = useState([]);
 
   const fetchAllData = async () => {
     try {
-      const [rI1, rT1, rI2, rT2] = await Promise.all([
-        fetch('/api/items?type=tong_kho'),
-        fetch('/api/transactions?type=tong_kho'),
-        fetch('/api/items?type=quan_trong'),
-        fetch('/api/transactions?type=quan_trong')
+      const [resItems, resTrans] = await Promise.all([
+        fetch('/api/items'),
+        fetch('/api/transactions')
       ]);
 
-      const dI1 = await rI1.json();
-      const dT1 = await rT1.json();
-      const dI2 = await rI2.json();
-      const dT2 = await rT2.json();
+      const dataItems = await resItems.json();
+      const dataTrans = await resTrans.json();
 
-      if (Array.isArray(dI1)) setItemsTongKho(dI1);
-      if (Array.isArray(dT1)) setTransTongKho(dT1);
-      if (Array.isArray(dI2)) setItemsQuanTrong(dI2);
-      if (Array.isArray(dT2)) setTransQuanTrong(dT2);
+      if (Array.isArray(dataItems)) setItems(dataItems);
+      if (Array.isArray(dataTrans)) setTransactions(dataTrans);
     } catch (error) {
       console.error("Lỗi khi fetch data:", error);
     }
@@ -1240,15 +1230,10 @@ function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    // Tải lần đầu tiên ngay khi mở web
     fetchAllData();
-
-    // Thiết lập tự động tải lại mỗi 15 giây (Auto-polling)
     const intervalId = setInterval(() => {
       fetchAllData();
-    }, 15000);
-
-    // Dọn dẹp interval khi đóng component
+    }, 30000); // 30 seconds
     return () => clearInterval(intervalId);
   }, []);
 
@@ -1265,12 +1250,11 @@ function App() {
             <div style={{ width: 40 }}></div>
           </div>
           <Routes>
-            <Route path="/" element={<Dashboard items={itemsTongKho} transactions={transTongKho} />} />
-            <Route path="/tong-kho" element={<Inventory type="tong_kho" title="Tổng kho" items={itemsTongKho} setItems={setItemsTongKho} fetchItems={fetchAllData} transactions={transTongKho} />} />
-            <Route path="/inventory" element={<Inventory type="quan_trong" title="Vật tư quan trọng" items={itemsQuanTrong} setItems={setItemsQuanTrong} fetchItems={fetchAllData} transactions={transQuanTrong} />} />
-            <Route path="/item/:sku" element={<ItemHistoryCalendar items={itemsTongKho} transactions={transTongKho} />} />
-            <Route path="/transactions" element={<Transactions transactions={transTongKho} fetchItems={fetchAllData} />} />
-            <Route path="/ocr" element={<OcrScanner items={itemsTongKho} />} />
+            <Route path="/" element={<Dashboard items={items} transactions={transactions} />} />
+            <Route path="/inventory" element={<Inventory items={items} setItems={setItems} fetchItems={fetchAllData} transactions={transactions} />} />
+            <Route path="/item/:sku" element={<ItemHistoryCalendar items={items} transactions={transactions} />} />
+            <Route path="/transactions" element={<Transactions transactions={transactions} fetchItems={fetchAllData} />} />
+            <Route path="/ocr" element={<OcrScanner items={items} />} />
             <Route path="/settings" element={
               <div className="page-header">
                 <h2>Cài đặt</h2>

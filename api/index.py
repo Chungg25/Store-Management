@@ -24,6 +24,24 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'), override=True)
 
 app = FastAPI()
 
+import time
+
+CACHE = {}
+CACHE_TTL = 15
+
+def get_cached(key):
+    if key in CACHE and time.time() - CACHE[key]["time"] < CACHE_TTL:
+        return CACHE[key]["data"]
+    return None
+
+def set_cache(key, data):
+    CACHE[key] = {"data": data, "time": time.time()}
+
+def invalidate_cache():
+    CACHE.clear()
+
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,43 +98,52 @@ def health_check():
     return {"status": "ok"}
 
 @app.get("/api/items")
-def get_items(type: str = "quan_trong"):
-    items_sheet, _ = get_sheets(type)
+def get_items(type: str = ""):
+    cached = get_cached("items")
+    if cached: return cached
+    
+    items_sheet, _, data_sheet = get_sheets()
     if not items_sheet:
         raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
+        
+    important_skus = set()
+    if data_sheet:
+        for r in data_sheet.get_all_records():
+            s = r.get("Mã hàng")
+            if s: important_skus.add(str(s).strip().lower())
     
     records = items_sheet.get_all_records()
     items = []
-    
     for row in records:
-        if not row.get("Mã hàng"):
-            continue
-            
+        sku = row.get("Mã hàng")
+        if not sku: continue
         try: qty = int(row.get("Số lượng", 0) or 0)
         except ValueError: qty = 0
-            
         try: threshold = int(row.get("Hạn mức", 0) or 0)
         except ValueError: threshold = 0
-            
+        
         items.append({
             "id": row.get("STT") or "",
-            "sku": row.get("Mã hàng"),
+            "sku": sku,
             "name": row.get("Tên hàng"),
             "unit": row.get("ĐVT") or row.get("Đơn vị tính") or row.get("Đơn vị", ""),
             "quantity": qty,
             "minThreshold": threshold,
-            "group": row.get("Nhóm", "") or row.get("Phân loại", "")
+            "group": row.get("Nhóm", "") or row.get("Phân loại", ""),
+            "isImportant": str(sku).strip().lower() in important_skus
         })
-        
+    set_cache("items", items)
     return items
 
 @app.get("/api/transactions")
-def get_transactions(type: str = "quan_trong"):
-    _, trans_sheet = get_sheets(type)
+def get_transactions(type: str = ""):
+    cached = get_cached("transactions")
+    if cached: return cached
+    _, trans_sheet, _ = get_sheets()
     if not trans_sheet:
         raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
-        
     records = trans_sheet.get_all_records()
+    set_cache("transactions", records)
     return records
 
 class ItemUpdate(BaseModel):
@@ -132,42 +159,28 @@ class ItemDetailsUpdate(BaseModel):
 
 @app.put("/api/items/{sku}/details")
 def update_item_details(sku: str, payload: ItemDetailsUpdate):
-    items_sheet, _ = get_sheets(payload.type)
+    invalidate_cache()
+    items_sheet, _, _ = get_sheets()
     if not items_sheet:
         raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
     
-    cell = items_sheet.find(sku, in_column=1) if payload.type == "tong_kho" else items_sheet.find(sku, in_column=2)
+    idx_map = get_column_indices(items_sheet)
+    col_sku = idx_map.get("mã hàng")
+    if not col_sku:
+        raise HTTPException(status_code=500, detail="Sheet missing 'Mã hàng' column")
+        
+    cell = items_sheet.find(sku, in_column=col_sku)
     if not cell:
-        # Fallback to general search
-        cell = items_sheet.find(sku)
-        if not cell:
-            raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="Item not found")
         
     row_idx = cell.row
-    col_name = 2 if payload.type == "tong_kho" else 3
-    col_unit = 3 if payload.type == "tong_kho" else 4
-    col_thresh = 5 if payload.type == "tong_kho" else 6
+    col_name = idx_map.get("tên hàng")
+    col_unit = idx_map.get("đvt") or idx_map.get("đơn vị tính") or idx_map.get("đơn vị")
+    col_thresh = idx_map.get("hạn mức")
     
-    items_sheet.update_cell(row_idx, col_name, payload.name)
-    items_sheet.update_cell(row_idx, col_unit, payload.unit)
-    items_sheet.update_cell(row_idx, col_thresh, payload.minThreshold)
-    
-    # Đồng bộ sang sheet còn lại
-    other_type = "tong_kho" if payload.type == "quan_trong" else "quan_trong"
-    other_items_sheet, _ = get_sheets(other_type)
-    if other_items_sheet:
-        try:
-            cell_o = other_items_sheet.find(sku)
-            if cell_o:
-                ro = cell_o.row
-                c_name = 2 if other_type == "tong_kho" else 3
-                c_unit = 3 if other_type == "tong_kho" else 4
-                c_thresh = 5 if other_type == "tong_kho" else 6
-                other_items_sheet.update_cell(ro, c_name, payload.name)
-                other_items_sheet.update_cell(ro, c_unit, payload.unit)
-                other_items_sheet.update_cell(ro, c_thresh, payload.minThreshold)
-        except Exception as e:
-            print("Sync edit error:", e)
+    if col_name: items_sheet.update_cell(row_idx, col_name, payload.name)
+    if col_unit: items_sheet.update_cell(row_idx, col_unit, payload.unit)
+    if col_thresh: items_sheet.update_cell(row_idx, col_thresh, payload.minThreshold)
     
     return {"message": "Cập nhật thông tin thành công"}
 
@@ -186,7 +199,8 @@ def log_transaction(trans_sheet, timestamp, sku, item_name, action, amount, unit
 
 @app.put("/api/items/{sku}")
 def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: BackgroundTasks):
-    items_sheet, trans_sheet = get_sheets(payload.type)
+    invalidate_cache()
+    items_sheet, trans_sheet, _ = get_sheets()
     if not items_sheet or not trans_sheet:
         raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
     
@@ -220,29 +234,6 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
     amount = abs(payload.changeAmount)
     
     background_tasks.add_task(log_transaction, trans_sheet, timestamp, sku, item_name, action, amount, unit)
-    
-    # Đồng bộ kép (Dual Sync)
-    other_type = "tong_kho" if payload.type == "quan_trong" else "quan_trong"
-    other_items_sheet, other_trans_sheet = get_sheets(other_type)
-    if other_items_sheet and other_trans_sheet:
-        try:
-            o_idx_map = get_column_indices(other_items_sheet)
-            o_col_sku = o_idx_map.get("mã hàng")
-            if o_col_sku:
-                cell_o = other_items_sheet.find(sku, in_column=o_col_sku)
-                if cell_o:
-                    ro = cell_o.row
-                    o_col_qty = o_idx_map.get("số lượng")
-                    if o_col_qty:
-                        old_qty_val = other_items_sheet.cell(ro, o_col_qty).value
-                        try: old_qty = int(old_qty_val or 0)
-                        except ValueError: old_qty = 0
-                        
-                        new_qty_other = old_qty + payload.changeAmount
-                        other_items_sheet.update_cell(ro, o_col_qty, new_qty_other)
-                        background_tasks.add_task(log_transaction, other_trans_sheet, timestamp, sku, item_name, action, amount, unit)
-        except Exception as e:
-            print("Sync transaction error:", e)
     
     return {"message": "Quantity updated", "new_quantity": new_quantity}
 
@@ -282,47 +273,18 @@ async def process_ocr(file: UploadFile = File(...)):
 
 
 
-def sync_ocr_transactions(parsed_data, type, time_str):
-    try:
-        other_type = "tong_kho" if type == "quan_trong" else "quan_trong"
-        other_items_sheet, other_trans_sheet = get_sheets(other_type)
-        if not other_items_sheet or not other_trans_sheet:
-            return
-        
-        other_records = other_items_sheet.get_all_records()
-        for item in parsed_data:
-            name = item.get("tên mặt hàng", "").strip()
-            unit = item.get("đơn vị tính", "").strip()
-            try: qty = int(item.get("số lượng", 0))
-            except ValueError: qty = 0
-            if not name or qty <= 0: continue
-            
-            for i, row in enumerate(other_records):
-                row_name = str(row.get("Tên hàng", "")).strip()
-                row_unit = str(row.get("ĐVT", "")).strip()
-                # Thử so khớp cả "Đơn vị tính"
-                alt_unit = str(row.get("Đơn vị tính", "")).strip()
-                if row_name.lower() == name.lower() and (row_unit.lower() == unit.lower() or alt_unit.lower() == unit.lower()):
-                    found_idx = i + 2
-                    sku = str(row.get("Mã hàng", ""))
-                    try: current_qty = int(row.get("Số lượng", 0) or 0)
-                    except ValueError: current_qty = 0
-                    
-                    new_qty = current_qty + qty
-                    col_qty = 4 if other_type == "tong_kho" else 5
-                    other_items_sheet.update_cell(found_idx, col_qty, new_qty)
-                    log_transaction(other_trans_sheet, time_str, sku, name, "Nhập", qty, unit)
-                    break
-    except Exception as e:
-        print("OCR Sync error:", e)
-
 @app.post("/api/save-ocr")
-async def save_ocr(data: str = Form(...), type: str = Form("quan_trong"), background_tasks: BackgroundTasks = BackgroundTasks()):
+async def save_ocr(data: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks()):
     try:
         parsed_data = json.loads(data)
-        
-        items_sheet, trans_sheet = get_sheets(type)
+        invalidate_cache()
+        items_sheet, trans_sheet, _ = get_sheets()
         if items_sheet and trans_sheet:
+            idx_map = get_column_indices(items_sheet)
+            col_qty = idx_map.get("số lượng")
+            if not col_qty:
+                raise HTTPException(status_code=500, detail="Sheet missing 'Số lượng' column")
+            
             records = items_sheet.get_all_records()
             vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
             time_str = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -351,19 +313,14 @@ async def save_ocr(data: str = Form(...), type: str = Form("quan_trong"), backgr
                 
                 if found_idx != -1:
                     new_qty = current_qty + qty
-                    col_qty = 4 if type == "tong_kho" else 5
                     items_sheet.update_cell(found_idx, col_qty, new_qty)
-                    log_transaction(trans_sheet, time_str, sku, name, "Nhập", qty, unit)
+                    background_tasks.add_task(log_transaction, trans_sheet, time_str, sku, name, "Nhập", qty, unit)
                 elif item.get("isNewItem"):
-                    new_stt = len(records) + 1
                     import time
                     new_sku = f"SP{int(time.time() * 1000)}"
                     try:
-                        if type == "tong_kho":
-                            items_sheet.append_row([new_sku, name, unit, qty, 0, ""])
-                        else:
-                            items_sheet.append_row([new_stt, new_sku, name, unit, qty, 0])
-                        log_transaction(trans_sheet, time_str, new_sku, name, "Nhập", qty, unit)
+                        items_sheet.append_row([new_sku, name, unit, qty, 0, ""])
+                        background_tasks.add_task(log_transaction, trans_sheet, time_str, new_sku, name, "Nhập", qty, unit)
                         records.append({
                             "Tên hàng": name,
                             "ĐVT": unit,
@@ -372,18 +329,8 @@ async def save_ocr(data: str = Form(...), type: str = Form("quan_trong"), backgr
                         })
                     except Exception as e:
                         print(f"Error appending new item for OCR: {e}")
-            
-            # Kích hoạt đồng bộ kép chạy ngầm
-            background_tasks.add_task(sync_ocr_transactions, parsed_data, type, time_str)
         
-        return {
-            "success": True, 
-            "message": "Đã lưu thông tin hóa đơn và tự động nhập kho thành công.",
-            "saved_data": parsed_data
-        }
-
+        return {"message": "Dữ liệu OCR đã được cập nhật thành công!"}
     except Exception as e:
+        print(f"OCR Save Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# Trigger reload
