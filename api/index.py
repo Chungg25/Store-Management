@@ -38,7 +38,7 @@ EMAIL_RECEIVER = os.environ.get("EMAIL_RECEIVER") or EMAIL_SENDER
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD")
 CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), '../credentials.json')
 
-def get_sheets():
+def get_sheets(inventory_type="quan_trong"):
     try:
         google_creds = os.environ.get("GOOGLE_CREDENTIALS")
         if google_creds:
@@ -47,21 +47,27 @@ def get_sheets():
         else:
             gc = gspread.service_account(filename=CREDENTIALS_PATH)
         sh = gc.open_by_key(SPREADSHEET_ID)
-        # Lấy Sheet Danh mục (tìm sheet tên 'Data' hoặc 'data', nếu không có thì lấy sheet đầu tiên)
+        
+        target_item_sheet = "Inventory" if inventory_type == "tong_kho" else "Data"
+        target_hist_sheet = "LichSu_Tong" if inventory_type == "tong_kho" else "LichSu"
+
         items_sheet = None
         transactions_sheet = None
         for sheet in sh.worksheets():
-            if sheet.title.lower() == "data":
+            if sheet.title.lower() == target_item_sheet.lower():
                 items_sheet = sheet
-            if sheet.title == "LichSu":
+            if sheet.title == target_hist_sheet:
                 transactions_sheet = sheet
                 
         if not items_sheet:
-            items_sheet = sh.get_worksheet(0)
+            if inventory_type == "quan_trong":
+                items_sheet = sh.get_worksheet(0)
+            else:
+                items_sheet = sh.add_worksheet(title="Inventory", rows="1000", cols="20")
+                items_sheet.append_row(["Mã hàng", "Tên hàng", "ĐVT", "Số lượng", "Hạn mức", "Phân loại"])
             
-        # Lấy hoặc tạo Sheet Lịch sử (LichSu)
         if not transactions_sheet:
-            transactions_sheet = sh.add_worksheet(title="LichSu", rows="1000", cols="6")
+            transactions_sheet = sh.add_worksheet(title=target_hist_sheet, rows="1000", cols="6")
             transactions_sheet.append_row(["Thời gian", "Mã hàng", "Tên hàng", "Hành động", "Số lượng", "Đơn vị"])
             
         return items_sheet, transactions_sheet
@@ -69,172 +75,13 @@ def get_sheets():
         print(f"Error connecting to Google Sheets: {e}")
         return None, None
 
-def send_alert_email(item_name: str, quantity: int, unit: str, threshold: int):
-    if not EMAIL_APP_PASSWORD or EMAIL_SENDER == "example@gmail.com":
-        return
-
-    subject = f"⚠️ Cảnh báo tồn kho: {item_name} sắp hết!"
-    body = f"""
-    Kính gửi Quản lý Kho,
-
-    Hệ thống ghi nhận vật tư "{item_name}" đã chạm hoặc dưới ngưỡng cảnh báo.
-    
-    - Số lượng hiện tại: {quantity} {unit}
-    - Hạn mức tối thiểu: {threshold} {unit}
-    
-    Vui lòng kiểm tra và lên kế hoạch nhập hàng sớm.
-    
-    Trân trọng,
-    Hệ thống Quản lý Kho Dr. Smile
-    """
-    
-    msg = MIMEMultipart()
-    msg['From'] = EMAIL_SENDER
-    msg['To'] = EMAIL_RECEIVER
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
-
-    try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
-        text = msg.as_string()
-        receiver_emails = [email.strip() for email in EMAIL_RECEIVER.split(',')]
-        server.sendmail(EMAIL_SENDER, receiver_emails, text)
-        server.quit()
-    except Exception as e:
-        print(f"Failed to send email: {e}")
-
-def generate_and_send_daily_report():
-    if not EMAIL_APP_PASSWORD or EMAIL_SENDER == "example@gmail.com":
-        print("Daily report skipped: Email not configured")
-        return {"status": "skipped", "reason": "Email not configured"}
-
-    items_sheet, _ = get_sheets()
-    if not items_sheet:
-        return {"status": "error", "reason": "Cannot connect to Google Sheets"}
-        
-    records = items_sheet.get_all_records()
-    low_stock_items = []
-    
-    for row in records:
-        if not row.get("Mã hàng"): continue
-        try: qty = int(row.get("Số lượng", 0) or 0)
-        except ValueError: qty = 0
-        try: threshold = int(row.get("Hạn mức", 0) or 0)
-        except ValueError: threshold = 0
-        
-        if threshold > 0 and qty <= threshold:
-            low_stock_items.append({
-                "sku": row.get("Mã hàng"),
-                "name": row.get("Tên hàng"),
-                "unit": row.get("ĐVT"),
-                "quantity": qty,
-                "threshold": threshold
-            })
-            
-    if not low_stock_items:
-        print("Daily report: All items are sufficiently stocked.")
-        return {"status": "ok", "message": "No items need restocking"}
-
-    # Generate HTML Table
-    table_rows = ""
-    for idx, item in enumerate(low_stock_items):
-        bg_color = "#ffffff" if idx % 2 == 0 else "#f9fafb"
-        table_rows += f"""
-        <tr style="background-color: {bg_color};">
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">{item['sku']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: bold; color: #1f2937;">{item['name']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #ef4444; font-weight: bold;">{item['quantity']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">{item['threshold']}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">{item['unit']}</td>
-        </tr>
-        """
-
-    vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
-    today_str = datetime.now(vn_tz).strftime("%d/%m/%Y") if vn_tz else datetime.now().strftime("%d/%m/%Y")
-    
-    html_body = f"""
-    <html>
-      <body style="font-family: Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-            <div style="background-color: #1597E5; padding: 20px; text-align: center; color: white;">
-                <h2 style="margin: 0; font-size: 24px;">Báo Cáo Tồn Kho Dr. Smile</h2>
-                <p style="margin: 5px 0 0 0; opacity: 0.9;">Tự động tạo lúc 8:00 Sáng - Ngày {today_str}</p>
-            </div>
-            <div style="padding: 20px;">
-                <p style="font-size: 16px; color: #374151;">Xin chào Quản lý Kho,</p>
-                <p style="font-size: 16px; color: #374151;">Hệ thống ghi nhận có <strong>{len(low_stock_items)}</strong> vật tư đã cạn kiệt hoặc chạm mức tối thiểu. Vui lòng xem danh sách bên dưới và lên kế hoạch nhập hàng:</p>
-                
-                <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-                    <thead>
-                        <tr style="background-color: #f3f4f6;">
-                            <th style="padding: 10px; text-align: left; font-size: 14px; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Mã hàng</th>
-                            <th style="padding: 10px; text-align: left; font-size: 14px; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Tên vật tư</th>
-                            <th style="padding: 10px; text-align: left; font-size: 14px; color: #ef4444; border-bottom: 2px solid #e5e7eb;">Tồn kho</th>
-                            <th style="padding: 10px; text-align: left; font-size: 14px; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Hạn mức</th>
-                            <th style="padding: 10px; text-align: left; font-size: 14px; color: #6b7280; border-bottom: 2px solid #e5e7eb;">Đơn vị</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {table_rows}
-                    </tbody>
-                </table>
-                
-                <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
-                    <p style="margin: 0;">Email này được gửi tự động từ Hệ thống Quản lý Kho Dr. Smile.</p>
-                </div>
-            </div>
-        </div>
-      </body>
-    </html>
-    """
-    
-    subject = f"🔔 Báo cáo Nhập hàng tự động - Ngày {today_str}"
-    msg = MIMEMultipart('alternative')
-    msg['From'] = EMAIL_SENDER
-    msg['To'] = EMAIL_RECEIVER
-    msg['Subject'] = subject
-    
-    msg.attach(MIMEText("Vui lòng mở email bằng trình duyệt hỗ trợ HTML.", 'plain'))
-    msg.attach(MIMEText(html_body, 'html'))
-
-    try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(EMAIL_SENDER, EMAIL_APP_PASSWORD)
-        text = msg.as_string()
-        receiver_emails = [email.strip() for email in EMAIL_RECEIVER.split(',')]
-        server.sendmail(EMAIL_SENDER, receiver_emails, text)
-        server.quit()
-        return {"status": "ok", "message": f"Sent report for {len(low_stock_items)} items."}
-    except Exception as e:
-        print(f"Failed to send daily report email: {e}")
-        return {"status": "error", "message": str(e)}
-
-@app.on_event("startup")
-def setup_cron():
-    if SCHEDULER_AVAILABLE:
-        scheduler = AsyncIOScheduler()
-        tz = pytz.timezone('Asia/Ho_Chi_Minh')
-        scheduler.add_job(generate_and_send_daily_report, 'cron', hour=8, minute=0, timezone=tz)
-        scheduler.start()
-        print("Background cron scheduler started (08:00 AM VN Time).")
-    else:
-        print("APScheduler not installed. Internal cron is disabled.")
-
-@app.get("/api/cron/daily-report")
-def trigger_daily_report():
-    result = generate_and_send_daily_report()
-    return result
-
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
 
 @app.get("/api/items")
-def get_items():
-    items_sheet, _ = get_sheets()
+def get_items(type: str = "quan_trong"):
+    items_sheet, _ = get_sheets(type)
     if not items_sheet:
         raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
     
@@ -252,20 +99,20 @@ def get_items():
         except ValueError: threshold = 0
             
         items.append({
-            "id": row.get("STT"),
+            "id": row.get("STT") or "",
             "sku": row.get("Mã hàng"),
             "name": row.get("Tên hàng"),
-            "unit": row.get("ĐVT"),
+            "unit": row.get("ĐVT") or row.get("Đơn vị tính") or row.get("Đơn vị", ""),
             "quantity": qty,
             "minThreshold": threshold,
-            "group": row.get("Nhóm", "")
+            "group": row.get("Nhóm", "") or row.get("Phân loại", "")
         })
         
     return items
 
 @app.get("/api/transactions")
-def get_transactions():
-    _, trans_sheet = get_sheets()
+def get_transactions(type: str = "quan_trong"):
+    _, trans_sheet = get_sheets(type)
     if not trans_sheet:
         raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
         
@@ -274,76 +121,109 @@ def get_transactions():
 
 class ItemUpdate(BaseModel):
     quantity: int
-    changeAmount: int # Số lượng thay đổi (dương là nhập, âm là xuất)
+    changeAmount: int 
+    type: str = "quan_trong"
 
 class ItemDetailsUpdate(BaseModel):
     name: str
     unit: str
     minThreshold: int
+    type: str = "quan_trong"
 
 @app.put("/api/items/{sku}/details")
 def update_item_details(sku: str, payload: ItemDetailsUpdate):
-    items_sheet, _ = get_sheets()
+    items_sheet, _ = get_sheets(payload.type)
     if not items_sheet:
         raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
     
-    cell = items_sheet.find(sku, in_column=2)
+    cell = items_sheet.find(sku, in_column=1) if payload.type == "tong_kho" else items_sheet.find(sku, in_column=2)
     if not cell:
-        raise HTTPException(status_code=404, detail="Item not found")
+        # Fallback to general search
+        cell = items_sheet.find(sku)
+        if not cell:
+            raise HTTPException(status_code=404, detail="Item not found")
         
     row_idx = cell.row
+    col_name = 2 if payload.type == "tong_kho" else 3
+    col_unit = 3 if payload.type == "tong_kho" else 4
+    col_thresh = 5 if payload.type == "tong_kho" else 6
     
-    # Cập nhật tên, đơn vị, hạn mức
-    items_sheet.update_cell(row_idx, 3, payload.name)
-    items_sheet.update_cell(row_idx, 4, payload.unit)
-    items_sheet.update_cell(row_idx, 6, payload.minThreshold)
+    items_sheet.update_cell(row_idx, col_name, payload.name)
+    items_sheet.update_cell(row_idx, col_unit, payload.unit)
+    items_sheet.update_cell(row_idx, col_thresh, payload.minThreshold)
+    
+    # Đồng bộ sang sheet còn lại
+    other_type = "tong_kho" if payload.type == "quan_trong" else "quan_trong"
+    other_items_sheet, _ = get_sheets(other_type)
+    if other_items_sheet:
+        try:
+            cell_o = other_items_sheet.find(sku)
+            if cell_o:
+                ro = cell_o.row
+                c_name = 2 if other_type == "tong_kho" else 3
+                c_unit = 3 if other_type == "tong_kho" else 4
+                c_thresh = 5 if other_type == "tong_kho" else 6
+                other_items_sheet.update_cell(ro, c_name, payload.name)
+                other_items_sheet.update_cell(ro, c_unit, payload.unit)
+                other_items_sheet.update_cell(ro, c_thresh, payload.minThreshold)
+        except Exception as e:
+            print("Sync edit error:", e)
     
     return {"message": "Cập nhật thông tin thành công"}
 
-def log_transaction_and_check_alert(trans_sheet, timestamp, sku, item_name, action, amount, unit, threshold_val, new_quantity, change_amount):
+def log_transaction(trans_sheet, timestamp, sku, item_name, action, amount, unit):
     try:
         trans_sheet.append_row([timestamp, sku, item_name, action, amount, unit])
     except Exception as e:
         print(f"Error writing transaction: {e}")
-        
-    try:
-        threshold = int(threshold_val) if threshold_val else 0
-        if change_amount < 0 and new_quantity <= threshold: # Chỉ gửi mail khi xuất làm giảm tồn kho
-            send_alert_email(item_name, new_quantity, unit, threshold)
-    except Exception as e:
-        print(f"Error checking threshold: {e}")
 
 @app.put("/api/items/{sku}")
 def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: BackgroundTasks):
-    items_sheet, trans_sheet = get_sheets()
+    items_sheet, trans_sheet = get_sheets(payload.type)
     if not items_sheet or not trans_sheet:
         raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
     
-    cell = items_sheet.find(sku, in_column=2)
+    cell = items_sheet.find(sku)
     if not cell:
         raise HTTPException(status_code=404, detail="Item not found")
         
     row_idx = cell.row
-    new_quantity = payload.quantity
+    col_qty = 4 if payload.type == "tong_kho" else 5
     
-    # Tối ưu: Lấy toàn bộ dữ liệu dòng chỉ trong 1 API call thay vì 3
     row_data = items_sheet.row_values(row_idx)
-    item_name = row_data[2] if len(row_data) > 2 else ""
-    unit = row_data[3] if len(row_data) > 3 else ""
-    threshold_val = row_data[5] if len(row_data) > 5 else "0"
+    name_idx = 1 if payload.type == "tong_kho" else 2
+    unit_idx = 2 if payload.type == "tong_kho" else 3
+    item_name = row_data[name_idx] if len(row_data) > name_idx else ""
+    unit = row_data[unit_idx] if len(row_data) > unit_idx else ""
     
-    items_sheet.update_cell(row_idx, 5, new_quantity)
+    new_quantity = payload.quantity
+    items_sheet.update_cell(row_idx, col_qty, new_quantity)
     
-    # Ghi log giao dịch và kiểm tra cảnh báo (chạy ngầm để phản hồi nhanh)
     vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
     timestamp = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     action = "Nhập" if payload.changeAmount > 0 else "Xuất"
     amount = abs(payload.changeAmount)
     
-    background_tasks.add_task(
-        log_transaction_and_check_alert, 
-        trans_sheet, timestamp, sku, item_name, action, amount, unit, threshold_val, new_quantity, payload.changeAmount
-    )
+    background_tasks.add_task(log_transaction, trans_sheet, timestamp, sku, item_name, action, amount, unit)
+    
+    # Đồng bộ kép (Dual Sync)
+    other_type = "tong_kho" if payload.type == "quan_trong" else "quan_trong"
+    other_items_sheet, other_trans_sheet = get_sheets(other_type)
+    if other_items_sheet and other_trans_sheet:
+        try:
+            cell_o = other_items_sheet.find(sku)
+            if cell_o:
+                ro = cell_o.row
+                c_qty = 4 if other_type == "tong_kho" else 5
+                old_qty_val = other_items_sheet.cell(ro, c_qty).value
+                try: old_qty = int(old_qty_val or 0)
+                except ValueError: old_qty = 0
+                
+                new_qty_other = old_qty + payload.changeAmount
+                other_items_sheet.update_cell(ro, c_qty, new_qty_other)
+                background_tasks.add_task(log_transaction, other_trans_sheet, timestamp, sku, item_name, action, amount, unit)
+        except Exception as e:
+            print("Sync transaction error:", e)
     
     return {"message": "Quantity updated", "new_quantity": new_quantity}
 
@@ -383,68 +263,88 @@ async def process_ocr(file: UploadFile = File(...)):
 
 
 
-@app.post("/api/save-ocr")
-async def save_ocr(data: str = Form(...)):
+def sync_ocr_transactions(parsed_data, type, time_str):
     try:
-        # Xử lý phần dữ liệu (Dữ liệu đã được người dùng chỉnh sửa)
+        other_type = "tong_kho" if type == "quan_trong" else "quan_trong"
+        other_items_sheet, other_trans_sheet = get_sheets(other_type)
+        if not other_items_sheet or not other_trans_sheet:
+            return
+        
+        other_records = other_items_sheet.get_all_records()
+        for item in parsed_data:
+            name = item.get("tên mặt hàng", "").strip()
+            unit = item.get("đơn vị tính", "").strip()
+            try: qty = int(item.get("số lượng", 0))
+            except ValueError: qty = 0
+            if not name or qty <= 0: continue
+            
+            for i, row in enumerate(other_records):
+                row_name = str(row.get("Tên hàng", "")).strip()
+                row_unit = str(row.get("ĐVT", "")).strip()
+                # Thử so khớp cả "Đơn vị tính"
+                alt_unit = str(row.get("Đơn vị tính", "")).strip()
+                if row_name.lower() == name.lower() and (row_unit.lower() == unit.lower() or alt_unit.lower() == unit.lower()):
+                    found_idx = i + 2
+                    sku = str(row.get("Mã hàng", ""))
+                    try: current_qty = int(row.get("Số lượng", 0) or 0)
+                    except ValueError: current_qty = 0
+                    
+                    new_qty = current_qty + qty
+                    col_qty = 4 if other_type == "tong_kho" else 5
+                    other_items_sheet.update_cell(found_idx, col_qty, new_qty)
+                    log_transaction(other_trans_sheet, time_str, sku, name, "Nhập", qty, unit)
+                    break
+    except Exception as e:
+        print("OCR Sync error:", e)
+
+@app.post("/api/save-ocr")
+async def save_ocr(data: str = Form(...), type: str = Form("quan_trong"), background_tasks: BackgroundTasks = BackgroundTasks()):
+    try:
         parsed_data = json.loads(data)
         
-        # Cập nhật số lượng vào Google Sheets
-        items_sheet, trans_sheet = get_sheets()
+        items_sheet, trans_sheet = get_sheets(type)
         if items_sheet and trans_sheet:
             records = items_sheet.get_all_records()
-            time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
+            time_str = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             for item in parsed_data:
                 name = item.get("tên mặt hàng", "").strip()
                 unit = item.get("đơn vị tính", "").strip()
-                try:
-                    qty = int(item.get("số lượng", 0))
-                except ValueError:
-                    qty = 0
+                try: qty = int(item.get("số lượng", 0))
+                except ValueError: qty = 0
                 
-                if not name or qty <= 0:
-                    continue
+                if not name or qty <= 0: continue
                 
-                # Tìm mặt hàng có cùng tên và đơn vị tính (không phân biệt hoa thường)
                 found_idx = -1
                 current_qty = 0
                 sku = ""
                 for i, row in enumerate(records):
                     row_name = str(row.get("Tên hàng", "")).strip()
                     row_unit = str(row.get("ĐVT", "")).strip()
-                    if row_name.lower() == name.lower() and row_unit.lower() == unit.lower():
-                        found_idx = i + 2 # +2 vì get_all_records bỏ qua header (row 1) và list index bắt đầu từ 0
+                    alt_unit = str(row.get("Đơn vị tính", "")).strip()
+                    if row_name.lower() == name.lower() and (row_unit.lower() == unit.lower() or alt_unit.lower() == unit.lower()):
+                        found_idx = i + 2 
                         sku = str(row.get("Mã hàng", ""))
-                        try:
-                            current_qty = int(row.get("Số lượng", 0) or 0)
-                        except ValueError:
-                            current_qty = 0
+                        try: current_qty = int(row.get("Số lượng", 0) or 0)
+                        except ValueError: current_qty = 0
                         break
                 
                 if found_idx != -1:
                     new_qty = current_qty + qty
-                    items_sheet.update_cell(found_idx, 5, new_qty)
-                    
-                    # Ghi lịch sử
-                    action = "Nhập"
-                    try:
-                        trans_sheet.append_row([time_str, sku, name, action, qty, unit])
-                    except Exception as e:
-                        print(f"Error writing transaction for OCR: {e}")
+                    col_qty = 4 if type == "tong_kho" else 5
+                    items_sheet.update_cell(found_idx, col_qty, new_qty)
+                    log_transaction(trans_sheet, time_str, sku, name, "Nhập", qty, unit)
                 elif item.get("isNewItem"):
-                    # Thêm mặt hàng mới
                     new_stt = len(records) + 1
-                    # Sinh mã SKU dựa trên timestamp để đảm bảo duy nhất
                     import time
                     new_sku = f"SP{int(time.time() * 1000)}"
                     try:
-                        # STT, Mã hàng, Tên hàng, ĐVT, Số lượng, Hạn mức
-                        items_sheet.append_row([new_stt, new_sku, name, unit, qty, 0])
-                        # Ghi lịch sử
-                        trans_sheet.append_row([time_str, new_sku, name, "Nhập", qty, unit])
-                        
-                        # Cập nhật records để các item sau (nếu trùng) có thể tìm thấy
+                        if type == "tong_kho":
+                            items_sheet.append_row([new_sku, name, unit, qty, 0, ""])
+                        else:
+                            items_sheet.append_row([new_stt, new_sku, name, unit, qty, 0])
+                        log_transaction(trans_sheet, time_str, new_sku, name, "Nhập", qty, unit)
                         records.append({
                             "Tên hàng": name,
                             "ĐVT": unit,
@@ -453,6 +353,9 @@ async def save_ocr(data: str = Form(...)):
                         })
                     except Exception as e:
                         print(f"Error appending new item for OCR: {e}")
+            
+            # Kích hoạt đồng bộ kép chạy ngầm
+            background_tasks.add_task(sync_ocr_transactions, parsed_data, type, time_str)
         
         return {
             "success": True, 
