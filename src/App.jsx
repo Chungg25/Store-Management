@@ -293,6 +293,15 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
       return;
     }
 
+    const months = [];
+    let curr = new Date(startDate);
+    while (curr <= endDate) {
+      const yyyy = curr.getFullYear();
+      const mm = String(curr.getMonth() + 1).padStart(2, '0');
+      months.push(`${yyyy}-${mm}`);
+      curr.setMonth(curr.getMonth() + 1);
+    }
+
     const reportData = items.map(item => {
       let qtyEnd = item.quantity;
       const itemTrans = transactions.filter(t => t['Mã hàng'] === item.sku);
@@ -305,60 +314,84 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
 
       transAfterEnd.forEach(t => {
         const amt = Number(t['Số lượng']) || 0;
-        if (t['Hành động'] === 'Nhập') {
-          qtyEnd -= amt;
-        } else if (t['Hành động'] === 'Xuất') {
-          qtyEnd += amt;
-        }
+        if (t['Hành động'] === 'Nhập') qtyEnd -= amt;
+        else if (t['Hành động'] === 'Xuất') qtyEnd += amt;
       });
 
-      // Lọc các giao dịch trong kỳ để tìm Tổng Nhập/Xuất và Tồn đầu kỳ
+      // Lọc các giao dịch trong kỳ
       const transDuring = itemTrans.filter(t => {
         const tDate = new Date(t['Thời gian'].replace(' ', 'T'));
         return tDate >= startDate && tDate <= endDate;
       });
 
-      let totalIn = 0;
-      let totalOut = 0;
+      let totalInPeriod = 0;
+      let totalOutPeriod = 0;
       let qtyStart = qtyEnd;
 
       transDuring.forEach(t => {
         const amt = Number(t['Số lượng']) || 0;
         if (t['Hành động'] === 'Nhập') {
-          totalIn += amt;
+          totalInPeriod += amt;
           qtyStart -= amt; // Trừ đi nhập để lùi về tồn đầu
         } else if (t['Hành động'] === 'Xuất') {
-          totalOut += amt;
+          totalOutPeriod += amt;
           qtyStart += amt; // Cộng thêm xuất để lùi về tồn đầu
         }
       });
 
-      return {
+      const row = {
         'Mã hàng (SKU)': item.sku,
         'Tên vật tư': item.name,
         'Đơn vị tính': item.unit,
         'Tồn đầu kỳ': qtyStart,
-        'Tổng nhập': totalIn,
-        'Tổng xuất': totalOut,
-        'Tồn cuối kỳ': qtyEnd
       };
+
+      let currentQty = qtyStart;
+      months.forEach(monthStr => {
+        let monthIn = 0;
+        let monthOut = 0;
+        transDuring.forEach(t => {
+          if (t['Thời gian'].startsWith(monthStr)) {
+            const amt = Number(t['Số lượng']) || 0;
+            if (t['Hành động'] === 'Nhập') monthIn += amt;
+            if (t['Hành động'] === 'Xuất') monthOut += amt;
+          }
+        });
+        currentQty = currentQty + monthIn - monthOut;
+        
+        row[`Nhập ${monthStr}`] = monthIn;
+        row[`Xuất ${monthStr}`] = monthOut;
+        row[`Tồn cuối ${monthStr}`] = currentQty;
+      });
+
+      row['Tổng nhập kỳ'] = totalInPeriod;
+      row['Tổng xuất kỳ'] = totalOutPeriod;
+      row['Tồn cuối kỳ'] = currentQty; // = qtyEnd
+
+      return row;
     });
 
-    // Thêm dòng Tổng Cộng ở cuối
-    const totalRow = reportData.reduce((acc, row) => {
-      acc['Tồn đầu kỳ'] += row['Tồn đầu kỳ'];
-      acc['Tổng nhập'] += row['Tổng nhập'];
-      acc['Tổng xuất'] += row['Tổng xuất'];
-      acc['Tồn cuối kỳ'] += row['Tồn cuối kỳ'];
-      return acc;
-    }, {
+    // Thêm dòng Tổng Cộng ở cuối tự động theo các cột
+    const totalRow = {
       'Mã hàng (SKU)': '',
       'Tên vật tư': 'TỔNG CỘNG',
-      'Đơn vị tính': '',
-      'Tồn đầu kỳ': 0,
-      'Tổng nhập': 0,
-      'Tổng xuất': 0,
-      'Tồn cuối kỳ': 0
+      'Đơn vị tính': ''
+    };
+    
+    if (reportData.length > 0) {
+      Object.keys(reportData[0]).forEach(key => {
+        if (key !== 'Mã hàng (SKU)' && key !== 'Tên vật tư' && key !== 'Đơn vị tính') {
+          totalRow[key] = 0;
+        }
+      });
+    }
+
+    reportData.forEach(row => {
+      Object.keys(row).forEach(key => {
+        if (key !== 'Mã hàng (SKU)' && key !== 'Tên vật tư' && key !== 'Đơn vị tính') {
+          totalRow[key] += row[key];
+        }
+      });
     });
     
     reportData.push(totalRow);
