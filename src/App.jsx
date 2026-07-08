@@ -644,6 +644,29 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
           </div>
         </div>
       )}
+
+      {/* Modal Báo cáo Xuất Nhập Tồn */}
+      {showReportModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <h3>Báo cáo Xuất Nhập Tồn</h3>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexDirection: 'column' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Từ tháng:</label>
+                <input type="month" className="form-input" value={reportStartMonth} onChange={(e) => setReportStartMonth(e.target.value)} style={{ width: '100%' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Đến tháng:</label>
+                <input type="month" className="form-input" value={reportEndMonth} onChange={(e) => setReportEndMonth(e.target.value)} style={{ width: '100%' }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem' }}>
+              <button className="btn btn-secondary" onClick={() => setShowReportModal(false)}>Hủy</button>
+              <button className="btn btn-primary" onClick={handleExportReport} style={{ backgroundColor: '#3B82F6' }}>Xuất Excel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -763,29 +786,6 @@ const Transactions = ({ transactions, fetchItems }) => {
           </tbody>
         </table>
       </div>
-
-      {/* Modal Báo cáo Xuất Nhập Tồn */}
-      {showReportModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <h3>Báo cáo Xuất Nhập Tồn</h3>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexDirection: 'column' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Từ tháng:</label>
-                <input type="month" className="form-input" value={reportStartMonth} onChange={(e) => setReportStartMonth(e.target.value)} style={{ width: '100%' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Đến tháng:</label>
-                <input type="month" className="form-input" value={reportEndMonth} onChange={(e) => setReportEndMonth(e.target.value)} style={{ width: '100%' }} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem' }}>
-              <button className="btn btn-secondary" onClick={() => setShowReportModal(false)}>Hủy</button>
-              <button className="btn btn-primary" onClick={handleExportReport} style={{ backgroundColor: '#3B82F6' }}>Xuất Excel</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
