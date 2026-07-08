@@ -70,7 +70,7 @@ def get_sheets():
             
         if not transactions_sheet:
             transactions_sheet = sh.add_worksheet(title="LichSu", rows="1000", cols="6")
-            transactions_sheet.append_row(["Thời gian", "Mã hàng", "Tên hàng", "Hành động", "Số lượng", "Đơn vị"])
+            transactions_sheet.append_row(["Thời gian", "Mã hàng", "Tên hàng", "Hành động", "Số lượng", "Đơn vị", "Người thực hiện"])
             
         if not data_sheet:
             data_sheet = sh.get_worksheet(0)
@@ -200,9 +200,9 @@ def get_column_indices(sheet):
         idx_map[h.strip().lower()] = i + 1
     return idx_map
 
-def log_transaction(trans_sheet, timestamp, sku, item_name, action, amount, unit):
+def log_transaction(trans_sheet, timestamp, sku, item_name, action, amount, unit, person):
     try:
-        trans_sheet.append_row([timestamp, sku, item_name, action, amount, unit])
+        trans_sheet.append_row([timestamp, sku, item_name, action, amount, unit, person])
     except Exception as e:
         print(f"Error writing transaction: {e}")
 
@@ -240,9 +240,10 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
         vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
         timestamp = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         action = "Nhập" if payload.changeAmount > 0 else "Xuất"
+        person = "Đan" if action == "Nhập" else "Bình"
         amount = abs(payload.changeAmount)
         
-        background_tasks.add_task(log_transaction, trans_sheet, timestamp, sku, item_name, action, amount, unit)
+        background_tasks.add_task(log_transaction, trans_sheet, timestamp, sku, item_name, action, amount, unit, person)
         
         return {"message": "Quantity updated", "new_quantity": new_quantity}
     except HTTPException:
@@ -328,13 +329,13 @@ async def save_ocr(data: str = Form(...), background_tasks: BackgroundTasks = Ba
                 if found_idx != -1:
                     new_qty = current_qty + qty
                     items_sheet.update_cell(found_idx, col_qty, new_qty)
-                    background_tasks.add_task(log_transaction, trans_sheet, time_str, sku, name, "Nhập", qty, unit)
+                    background_tasks.add_task(log_transaction, trans_sheet, time_str, sku, name, "Nhập", qty, unit, "Đan")
                 elif item.get("isNewItem"):
                     import time
                     new_sku = f"SP{int(time.time() * 1000)}"
                     try:
                         items_sheet.append_row([new_sku, name, unit, qty, 0, ""])
-                        background_tasks.add_task(log_transaction, trans_sheet, time_str, new_sku, name, "Nhập", qty, unit)
+                        background_tasks.add_task(log_transaction, trans_sheet, time_str, new_sku, name, "Nhập", qty, unit, "Đan")
                         records.append({
                             "Tên hàng": name,
                             "ĐVT": unit,

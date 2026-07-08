@@ -862,6 +862,7 @@ const Transactions = ({ transactions, fetchItems }) => {
               <th>Mã hàng</th>
               <th>Tên hàng</th>
               <th>Số lượng</th>
+              <th>Người thực hiện</th>
             </tr>
           </thead>
           <tbody>
@@ -876,11 +877,12 @@ const Transactions = ({ transactions, fetchItems }) => {
                 <td>{t['Mã hàng']}</td>
                 <td>{t['Tên hàng']}</td>
                 <td style={{ fontWeight: '600' }}>{t['Số lượng']} {t['Đơn vị']}</td>
+                <td>{t['Người thực hiện'] || ''}</td>
               </tr>
             ))}
             {filteredTransactions.length === 0 && (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
                   Chưa có lịch sử giao dịch.
                 </td>
               </tr>
