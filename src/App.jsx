@@ -344,6 +344,25 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
       };
     });
 
+    // Thêm dòng Tổng Cộng ở cuối
+    const totalRow = reportData.reduce((acc, row) => {
+      acc['Tồn đầu kỳ'] += row['Tồn đầu kỳ'];
+      acc['Tổng nhập'] += row['Tổng nhập'];
+      acc['Tổng xuất'] += row['Tổng xuất'];
+      acc['Tồn cuối kỳ'] += row['Tồn cuối kỳ'];
+      return acc;
+    }, {
+      'Mã hàng (SKU)': '',
+      'Tên vật tư': 'TỔNG CỘNG',
+      'Đơn vị tính': '',
+      'Tồn đầu kỳ': 0,
+      'Tổng nhập': 0,
+      'Tổng xuất': 0,
+      'Tồn cuối kỳ': 0
+    });
+    
+    reportData.push(totalRow);
+
     const worksheet = XLSX.utils.json_to_sheet(reportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Xuat_Nhap_Ton");
