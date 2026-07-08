@@ -256,7 +256,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
   };
 
   const handleExportTotal = () => {
-    const data = items.map(item => ({
+    const data = filteredItems.map(item => ({
       'Tên vật tư': item.name,
       'Đơn vị tính': item.unit,
       'Tồn kho': item.quantity,
@@ -269,7 +269,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
   };
 
   const handleExportLowStock = () => {
-    const lowStockItems = items.filter(item => item.quantity <= item.minThreshold);
+    const lowStockItems = filteredItems.filter(item => item.quantity <= item.minThreshold);
     const data = lowStockItems.map(item => ({
       'Tên vật tư': item.name,
       'Tồn kho': item.quantity,
