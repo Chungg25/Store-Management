@@ -171,6 +171,13 @@ def update_item_details(sku: str, payload: ItemDetailsUpdate):
     
     return {"message": "Cập nhật thông tin thành công"}
 
+def get_column_indices(sheet):
+    header = sheet.row_values(1)
+    idx_map = {}
+    for i, h in enumerate(header):
+        idx_map[h.strip().lower()] = i + 1
+    return idx_map
+
 def log_transaction(trans_sheet, timestamp, sku, item_name, action, amount, unit):
     try:
         trans_sheet.append_row([timestamp, sku, item_name, action, amount, unit])
@@ -183,18 +190,26 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
     if not items_sheet or not trans_sheet:
         raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
     
-    cell = items_sheet.find(sku)
+    idx_map = get_column_indices(items_sheet)
+    col_sku = idx_map.get("mã hàng")
+    if not col_sku:
+        raise HTTPException(status_code=500, detail="Sheet is missing 'Mã hàng' column")
+        
+    cell = items_sheet.find(sku, in_column=col_sku)
     if not cell:
         raise HTTPException(status_code=404, detail="Item not found")
         
     row_idx = cell.row
-    col_qty = 4 if payload.type == "tong_kho" else 5
+    col_qty = idx_map.get("số lượng")
+    if not col_qty:
+        raise HTTPException(status_code=500, detail="Sheet is missing 'Số lượng' column")
+        
+    col_name = idx_map.get("tên hàng")
+    col_unit = idx_map.get("đvt") or idx_map.get("đơn vị tính") or idx_map.get("đơn vị")
     
     row_data = items_sheet.row_values(row_idx)
-    name_idx = 1 if payload.type == "tong_kho" else 2
-    unit_idx = 2 if payload.type == "tong_kho" else 3
-    item_name = row_data[name_idx] if len(row_data) > name_idx else ""
-    unit = row_data[unit_idx] if len(row_data) > unit_idx else ""
+    item_name = row_data[col_name - 1] if col_name and len(row_data) >= col_name else ""
+    unit = row_data[col_unit - 1] if col_unit and len(row_data) >= col_unit else ""
     
     new_quantity = payload.quantity
     items_sheet.update_cell(row_idx, col_qty, new_quantity)
@@ -211,17 +226,21 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
     other_items_sheet, other_trans_sheet = get_sheets(other_type)
     if other_items_sheet and other_trans_sheet:
         try:
-            cell_o = other_items_sheet.find(sku)
-            if cell_o:
-                ro = cell_o.row
-                c_qty = 4 if other_type == "tong_kho" else 5
-                old_qty_val = other_items_sheet.cell(ro, c_qty).value
-                try: old_qty = int(old_qty_val or 0)
-                except ValueError: old_qty = 0
-                
-                new_qty_other = old_qty + payload.changeAmount
-                other_items_sheet.update_cell(ro, c_qty, new_qty_other)
-                background_tasks.add_task(log_transaction, other_trans_sheet, timestamp, sku, item_name, action, amount, unit)
+            o_idx_map = get_column_indices(other_items_sheet)
+            o_col_sku = o_idx_map.get("mã hàng")
+            if o_col_sku:
+                cell_o = other_items_sheet.find(sku, in_column=o_col_sku)
+                if cell_o:
+                    ro = cell_o.row
+                    o_col_qty = o_idx_map.get("số lượng")
+                    if o_col_qty:
+                        old_qty_val = other_items_sheet.cell(ro, o_col_qty).value
+                        try: old_qty = int(old_qty_val or 0)
+                        except ValueError: old_qty = 0
+                        
+                        new_qty_other = old_qty + payload.changeAmount
+                        other_items_sheet.update_cell(ro, o_col_qty, new_qty_other)
+                        background_tasks.add_task(log_transaction, other_trans_sheet, timestamp, sku, item_name, action, amount, unit)
         except Exception as e:
             print("Sync transaction error:", e)
     

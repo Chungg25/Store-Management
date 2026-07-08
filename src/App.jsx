@@ -194,14 +194,15 @@ const Inventory = ({ type = "quan_trong", title = "Kho vật tư", items, setIte
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quantity: newQty, changeAmount: amount, type: type })
-    }).then(res => {
+    }).then(async res => {
       if (!res.ok) {
-        alert("Có lỗi xảy ra khi cập nhật số liệu lên Server!");
+        const data = await res.json().catch(() => ({}));
+        setPopupError("Lỗi đồng bộ Server: " + (data.detail || "Ghi sai cột"));
         fetchItems(); // Lỗi thì tải lại số cũ
       }
     }).catch(error => {
       console.error(error);
-      alert("Lỗi kết nối Server.");
+      setPopupError("Lỗi kết nối Server.");
       fetchItems(); // Lỗi thì tải lại số cũ
     });
   };
@@ -240,13 +241,13 @@ const Inventory = ({ type = "quan_trong", title = "Kho vật tư", items, setIte
       body: JSON.stringify({ ...editFormData, type: type })
     }).then(async res => {
       if (!res.ok) {
-        const data = await res.json();
-        alert("Lỗi khi cập nhật: " + (data.detail || ""));
+        const data = await res.json().catch(() => ({}));
+        setPopupError("Lỗi khi cập nhật chi tiết: " + (data.detail || "Ghi sai cột"));
         fetchItems(); // Lỗi thì tải lại số cũ
       }
     }).catch(error => {
       console.error(error);
-      alert("Lỗi kết nối Server.");
+      setPopupError("Lỗi kết nối Server.");
       fetchItems(); // Lỗi thì tải lại số cũ
     });
   };
