@@ -85,7 +85,7 @@ const Dashboard = ({ items, transactions }) => {
   );
 };
 
-const Inventory = ({ items, setItems, fetchItems, transactions }) => {
+const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions }) => {
   const [showImportantOnly, setShowImportantOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -191,6 +191,25 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
         item.sku === sku ? { ...item, quantity: newQty } : item
       ));
     }
+    
+    // Thêm log lịch sử tạm thời cho UI
+    if (setTransactions) {
+      const action = amount > 0 ? 'Nhập' : 'Xuất';
+      const person = action === 'Nhập' ? 'Đan' : 'Bình';
+      const now = new Date();
+      const timeStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().replace('T', ' ').substring(0, 19);
+      const targetItem = items.find(i => i.sku === sku);
+      
+      setTransactions(prev => [{
+        "Thời gian": timeStr,
+        "Mã hàng": sku,
+        "Tên hàng": targetItem?.name || "",
+        "Hành động": action,
+        "Số lượng": Math.abs(amount),
+        "Đơn vị": targetItem?.unit || "",
+        "Người thực hiện": person
+      }, ...prev]);
+    }
 
     // 2. Chạy ngầm gọi API, không dùng await chặn giao diện
     fetch(`/api/items/${sku}`, {
@@ -202,6 +221,11 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
         const data = await res.json().catch(() => ({}));
         setPopupError("Lỗi đồng bộ Server: " + (data.detail || "Ghi sai cột"));
         fetchItems(); // Lỗi thì tải lại số cũ
+      } else {
+        // Tải lại API sau 3 giây để lấy dữ liệu chuẩn nhất từ máy chủ
+        setTimeout(() => {
+          fetchItems();
+        }, 3000);
       }
     }).catch(error => {
       console.error(error);
@@ -1260,7 +1284,7 @@ function App() {
           </div>
           <Routes>
             <Route path="/" element={<Dashboard items={items} transactions={transactions} />} />
-            <Route path="/inventory" element={<Inventory items={items} setItems={setItems} fetchItems={fetchAllData} transactions={transactions} />} />
+            <Route path="/inventory" element={<Inventory items={items} setItems={setItems} fetchItems={fetchAllData} transactions={transactions} setTransactions={setTransactions} />} />
             <Route path="/item/:sku" element={<ItemHistoryCalendar items={items} transactions={transactions} />} />
             <Route path="/transactions" element={<Transactions transactions={transactions} fetchItems={fetchAllData} />} />
             <Route path="/ocr" element={<OcrScanner items={items} />} />
