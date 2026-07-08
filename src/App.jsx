@@ -447,8 +447,19 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
 
   return (
     <div>
-      <div className="page-header">
-        <h2>Quản lý vật tư</h2>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h2>Kho vật tư</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '40px', height: '24px' }}>
+              <input type="checkbox" checked={showImportantOnly} onChange={(e) => setShowImportantOnly(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
+              <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: showImportantOnly ? '#10B981' : '#ccc', transition: '.4s', borderRadius: '34px' }}>
+                <span style={{ position: 'absolute', content: '""', height: '16px', width: '16px', left: showImportantOnly ? '20px' : '4px', bottom: '4px', backgroundColor: 'white', transition: '.4s', borderRadius: '50%' }}></span>
+              </span>
+            </label>
+            <span style={{ fontWeight: '500', color: showImportantOnly ? '#10B981' : 'var(--text-muted)' }}>Chỉ hiện vật tư quan trọng</span>
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={handleExportTotal} style={{ backgroundColor: '#10B981', color: 'white', border: 'none' }}>
             Xuất tổng vật tư

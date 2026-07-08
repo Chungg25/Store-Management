@@ -56,7 +56,7 @@ EMAIL_RECEIVER = os.environ.get("EMAIL_RECEIVER") or EMAIL_SENDER
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD")
 CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), '../credentials.json')
 
-def get_sheets(inventory_type="quan_trong"):
+def get_sheets():
     try:
         google_creds = os.environ.get("GOOGLE_CREDENTIALS")
         if google_creds:
@@ -66,32 +66,32 @@ def get_sheets(inventory_type="quan_trong"):
             gc = gspread.service_account(filename=CREDENTIALS_PATH)
         sh = gc.open_by_key(SPREADSHEET_ID)
         
-        target_item_sheet = "Inventory" if inventory_type == "tong_kho" else "Data"
-        target_hist_sheet = "LichSu_Tong" if inventory_type == "tong_kho" else "LichSu"
-
         items_sheet = None
         transactions_sheet = None
+        data_sheet = None
         for sheet in sh.worksheets():
-            if sheet.title.lower() == target_item_sheet.lower():
+            if sheet.title.lower() == "inventory":
                 items_sheet = sheet
-            if sheet.title == target_hist_sheet:
+            elif sheet.title == "LichSu":
                 transactions_sheet = sheet
+            elif sheet.title.lower() == "data":
+                data_sheet = sheet
                 
         if not items_sheet:
-            if inventory_type == "quan_trong":
-                items_sheet = sh.get_worksheet(0)
-            else:
-                items_sheet = sh.add_worksheet(title="Inventory", rows="1000", cols="20")
-                items_sheet.append_row(["Mã hàng", "Tên hàng", "ĐVT", "Số lượng", "Hạn mức", "Phân loại"])
+            items_sheet = sh.add_worksheet(title="Inventory", rows="1000", cols="20")
+            items_sheet.append_row(["Mã hàng", "Tên hàng", "ĐVT", "Số lượng", "Hạn mức", "Phân loại"])
             
         if not transactions_sheet:
-            transactions_sheet = sh.add_worksheet(title=target_hist_sheet, rows="1000", cols="6")
+            transactions_sheet = sh.add_worksheet(title="LichSu", rows="1000", cols="6")
             transactions_sheet.append_row(["Thời gian", "Mã hàng", "Tên hàng", "Hành động", "Số lượng", "Đơn vị"])
             
-        return items_sheet, transactions_sheet
+        if not data_sheet:
+            data_sheet = sh.get_worksheet(0)
+            
+        return items_sheet, transactions_sheet, data_sheet
     except Exception as e:
         print(f"Error connecting to Google Sheets: {e}")
-        return None, None
+        return None, None, None
 
 @app.get("/api/health")
 def health_check():
