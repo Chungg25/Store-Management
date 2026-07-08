@@ -1242,10 +1242,6 @@ function App() {
 
   useEffect(() => {
     fetchAllData();
-    const intervalId = setInterval(() => {
-      fetchAllData();
-    }, 30000); // 30 seconds
-    return () => clearInterval(intervalId);
   }, []);
 
   return (

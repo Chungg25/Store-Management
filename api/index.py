@@ -24,22 +24,6 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'), override=True)
 
 app = FastAPI()
 
-import time
-
-CACHE = {}
-CACHE_TTL = 15
-
-def get_cached(key):
-    if key in CACHE and time.time() - CACHE[key]["time"] < CACHE_TTL:
-        return CACHE[key]["data"]
-    return None
-
-def set_cache(key, data):
-    CACHE[key] = {"data": data, "time": time.time()}
-
-def invalidate_cache():
-    CACHE.clear()
-
 
 
 app.add_middleware(
@@ -69,6 +53,7 @@ def get_sheets():
         items_sheet = None
         transactions_sheet = None
         data_sheet = None
+        error_sheet = None
         for sheet in sh.worksheets():
             if sheet.title.lower() == "inventory":
                 items_sheet = sheet
@@ -76,6 +61,8 @@ def get_sheets():
                 transactions_sheet = sheet
             elif sheet.title.lower() == "data":
                 data_sheet = sheet
+            elif sheet.title == "ErrorLogs":
+                error_sheet = sheet
                 
         if not items_sheet:
             items_sheet = sh.add_worksheet(title="Inventory", rows="1000", cols="20")
@@ -88,63 +75,79 @@ def get_sheets():
         if not data_sheet:
             data_sheet = sh.get_worksheet(0)
             
-        return items_sheet, transactions_sheet, data_sheet
+        if not error_sheet:
+            error_sheet = sh.add_worksheet(title="ErrorLogs", rows="1000", cols="2")
+            error_sheet.append_row(["Thời gian", "Chi tiết lỗi"])
+            
+        return items_sheet, transactions_sheet, data_sheet, error_sheet
     except Exception as e:
         print(f"Error connecting to Google Sheets: {e}")
-        return None, None, None
+        return None, None, None, None
+
+def log_error(error_sheet, error_message):
+    if error_sheet:
+        try:
+            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
+            timestamp = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            error_sheet.append_row([timestamp, str(error_message)])
+        except Exception:
+            pass
 
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
 
 @app.get("/api/items")
-def get_items(type: str = ""):
-    cached = get_cached("items")
-    if cached: return cached
-    
-    items_sheet, _, data_sheet = get_sheets()
-    if not items_sheet:
-        raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
+def get_items(type: str = "", background_tasks: BackgroundTasks = BackgroundTasks()):
+    try:
+        items_sheet, _, data_sheet, error_sheet = get_sheets()
+        if not items_sheet:
+            raise Exception("Cannot connect to Google Sheets")
+            
+        important_skus = set()
+        if data_sheet:
+            for r in data_sheet.get_all_records():
+                s = r.get("Mã hàng")
+                if s: important_skus.add(str(s).strip().lower())
         
-    important_skus = set()
-    if data_sheet:
-        for r in data_sheet.get_all_records():
-            s = r.get("Mã hàng")
-            if s: important_skus.add(str(s).strip().lower())
-    
-    records = items_sheet.get_all_records()
-    items = []
-    for row in records:
-        sku = row.get("Mã hàng")
-        if not sku: continue
-        try: qty = int(row.get("Số lượng", 0) or 0)
-        except ValueError: qty = 0
-        try: threshold = int(row.get("Hạn mức", 0) or 0)
-        except ValueError: threshold = 0
-        
-        items.append({
-            "id": row.get("STT") or "",
-            "sku": sku,
-            "name": row.get("Tên hàng"),
-            "unit": row.get("ĐVT") or row.get("Đơn vị tính") or row.get("Đơn vị", ""),
-            "quantity": qty,
-            "minThreshold": threshold,
-            "group": row.get("Nhóm", "") or row.get("Phân loại", ""),
-            "isImportant": str(sku).strip().lower() in important_skus
-        })
-    set_cache("items", items)
-    return items
+        records = items_sheet.get_all_records()
+        items = []
+        for row in records:
+            sku = row.get("Mã hàng")
+            if not sku: continue
+            try: qty = int(row.get("Số lượng", 0) or 0)
+            except ValueError: qty = 0
+            try: threshold = int(row.get("Hạn mức", 0) or 0)
+            except ValueError: threshold = 0
+            
+            items.append({
+                "id": row.get("STT") or "",
+                "sku": sku,
+                "name": row.get("Tên hàng"),
+                "unit": row.get("ĐVT") or row.get("Đơn vị tính") or row.get("Đơn vị", ""),
+                "quantity": qty,
+                "minThreshold": threshold,
+                "group": row.get("Nhóm", "") or row.get("Phân loại", ""),
+                "isImportant": str(sku).strip().lower() in important_skus
+            })
+        return items
+    except Exception as e:
+        items_sheet, _, _, error_sheet = get_sheets()
+        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"get_items error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/transactions")
-def get_transactions(type: str = ""):
-    cached = get_cached("transactions")
-    if cached: return cached
-    _, trans_sheet, _ = get_sheets()
-    if not trans_sheet:
-        raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
-    records = trans_sheet.get_all_records()
-    set_cache("transactions", records)
-    return records
+def get_transactions(type: str = "", background_tasks: BackgroundTasks = BackgroundTasks()):
+    try:
+        _, trans_sheet, _, error_sheet = get_sheets()
+        if not trans_sheet:
+            raise Exception("Cannot connect to Google Sheets")
+        records = trans_sheet.get_all_records()
+        return records
+    except Exception as e:
+        _, _, _, error_sheet = get_sheets()
+        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"get_transactions error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 class ItemUpdate(BaseModel):
     quantity: int
@@ -158,31 +161,37 @@ class ItemDetailsUpdate(BaseModel):
     type: str = "quan_trong"
 
 @app.put("/api/items/{sku}/details")
-def update_item_details(sku: str, payload: ItemDetailsUpdate):
-    invalidate_cache()
-    items_sheet, _, _ = get_sheets()
-    if not items_sheet:
-        raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
-    
-    idx_map = get_column_indices(items_sheet)
-    col_sku = idx_map.get("mã hàng")
-    if not col_sku:
-        raise HTTPException(status_code=500, detail="Sheet missing 'Mã hàng' column")
+def update_item_details(sku: str, payload: ItemDetailsUpdate, background_tasks: BackgroundTasks = BackgroundTasks()):
+    try:
+        items_sheet, _, _, error_sheet = get_sheets()
+        if not items_sheet:
+            raise Exception("Cannot connect to Google Sheets")
         
-    cell = items_sheet.find(sku, in_column=col_sku)
-    if not cell:
-        raise HTTPException(status_code=404, detail="Item not found")
+        idx_map = get_column_indices(items_sheet)
+        col_sku = idx_map.get("mã hàng")
+        if not col_sku:
+            raise Exception("Sheet missing 'Mã hàng' column")
+            
+        cell = items_sheet.find(sku, in_column=col_sku)
+        if not cell:
+            raise HTTPException(status_code=404, detail="Item not found")
+            
+        row_idx = cell.row
+        col_name = idx_map.get("tên hàng")
+        col_unit = idx_map.get("đvt") or idx_map.get("đơn vị tính") or idx_map.get("đơn vị")
+        col_thresh = idx_map.get("hạn mức")
         
-    row_idx = cell.row
-    col_name = idx_map.get("tên hàng")
-    col_unit = idx_map.get("đvt") or idx_map.get("đơn vị tính") or idx_map.get("đơn vị")
-    col_thresh = idx_map.get("hạn mức")
-    
-    if col_name: items_sheet.update_cell(row_idx, col_name, payload.name)
-    if col_unit: items_sheet.update_cell(row_idx, col_unit, payload.unit)
-    if col_thresh: items_sheet.update_cell(row_idx, col_thresh, payload.minThreshold)
-    
-    return {"message": "Cập nhật thông tin thành công"}
+        if col_name: items_sheet.update_cell(row_idx, col_name, payload.name)
+        if col_unit: items_sheet.update_cell(row_idx, col_unit, payload.unit)
+        if col_thresh: items_sheet.update_cell(row_idx, col_thresh, payload.minThreshold)
+        
+        return {"message": "Cập nhật thông tin thành công"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        _, _, _, error_sheet = get_sheets()
+        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"update_item_details error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 def get_column_indices(sheet):
     header = sheet.row_values(1)
@@ -199,43 +208,49 @@ def log_transaction(trans_sheet, timestamp, sku, item_name, action, amount, unit
 
 @app.put("/api/items/{sku}")
 def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: BackgroundTasks):
-    invalidate_cache()
-    items_sheet, trans_sheet, _ = get_sheets()
-    if not items_sheet or not trans_sheet:
-        raise HTTPException(status_code=500, detail="Cannot connect to Google Sheets")
-    
-    idx_map = get_column_indices(items_sheet)
-    col_sku = idx_map.get("mã hàng")
-    if not col_sku:
-        raise HTTPException(status_code=500, detail="Sheet is missing 'Mã hàng' column")
+    try:
+        items_sheet, trans_sheet, _, error_sheet = get_sheets()
+        if not items_sheet or not trans_sheet:
+            raise Exception("Cannot connect to Google Sheets")
         
-    cell = items_sheet.find(sku, in_column=col_sku)
-    if not cell:
-        raise HTTPException(status_code=404, detail="Item not found")
+        idx_map = get_column_indices(items_sheet)
+        col_sku = idx_map.get("mã hàng")
+        if not col_sku:
+            raise Exception("Sheet is missing 'Mã hàng' column")
+            
+        cell = items_sheet.find(sku, in_column=col_sku)
+        if not cell:
+            raise HTTPException(status_code=404, detail="Item not found")
+            
+        row_idx = cell.row
+        col_qty = idx_map.get("số lượng")
+        if not col_qty:
+            raise Exception("Sheet is missing 'Số lượng' column")
+            
+        col_name = idx_map.get("tên hàng")
+        col_unit = idx_map.get("đvt") or idx_map.get("đơn vị tính") or idx_map.get("đơn vị")
         
-    row_idx = cell.row
-    col_qty = idx_map.get("số lượng")
-    if not col_qty:
-        raise HTTPException(status_code=500, detail="Sheet is missing 'Số lượng' column")
+        row_data = items_sheet.row_values(row_idx)
+        item_name = row_data[col_name - 1] if col_name and len(row_data) >= col_name else ""
+        unit = row_data[col_unit - 1] if col_unit and len(row_data) >= col_unit else ""
         
-    col_name = idx_map.get("tên hàng")
-    col_unit = idx_map.get("đvt") or idx_map.get("đơn vị tính") or idx_map.get("đơn vị")
-    
-    row_data = items_sheet.row_values(row_idx)
-    item_name = row_data[col_name - 1] if col_name and len(row_data) >= col_name else ""
-    unit = row_data[col_unit - 1] if col_unit and len(row_data) >= col_unit else ""
-    
-    new_quantity = payload.quantity
-    items_sheet.update_cell(row_idx, col_qty, new_quantity)
-    
-    vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
-    timestamp = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    action = "Nhập" if payload.changeAmount > 0 else "Xuất"
-    amount = abs(payload.changeAmount)
-    
-    background_tasks.add_task(log_transaction, trans_sheet, timestamp, sku, item_name, action, amount, unit)
-    
-    return {"message": "Quantity updated", "new_quantity": new_quantity}
+        new_quantity = payload.quantity
+        items_sheet.update_cell(row_idx, col_qty, new_quantity)
+        
+        vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
+        timestamp = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        action = "Nhập" if payload.changeAmount > 0 else "Xuất"
+        amount = abs(payload.changeAmount)
+        
+        background_tasks.add_task(log_transaction, trans_sheet, timestamp, sku, item_name, action, amount, unit)
+        
+        return {"message": "Quantity updated", "new_quantity": new_quantity}
+    except HTTPException:
+        raise
+    except Exception as e:
+        _, _, _, error_sheet = get_sheets()
+        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"update_item_quantity error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Initialize AI Engine Globally (to prevent loading repeatedly)
 ai_engine = None
@@ -277,13 +292,12 @@ async def process_ocr(file: UploadFile = File(...)):
 async def save_ocr(data: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks()):
     try:
         parsed_data = json.loads(data)
-        invalidate_cache()
-        items_sheet, trans_sheet, _ = get_sheets()
+        items_sheet, trans_sheet, _, error_sheet = get_sheets()
         if items_sheet and trans_sheet:
             idx_map = get_column_indices(items_sheet)
             col_qty = idx_map.get("số lượng")
             if not col_qty:
-                raise HTTPException(status_code=500, detail="Sheet missing 'Số lượng' column")
+                raise Exception("Sheet missing 'Số lượng' column")
             
             records = items_sheet.get_all_records()
             vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
@@ -328,9 +342,10 @@ async def save_ocr(data: str = Form(...), background_tasks: BackgroundTasks = Ba
                             "Số lượng": qty
                         })
                     except Exception as e:
-                        print(f"Error appending new item for OCR: {e}")
+                        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"OCR Append new item error: {str(e)}")
         
         return {"message": "Dữ liệu OCR đã được cập nhật thành công!"}
     except Exception as e:
-        print(f"OCR Save Error: {e}")
+        _, _, _, error_sheet = get_sheets()
+        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"OCR Save Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
