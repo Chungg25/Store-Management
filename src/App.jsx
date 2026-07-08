@@ -3,7 +3,7 @@ import { LayoutDashboard, Package, Activity, ScanLine, Settings, Check, X, Menu 
 import { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ItemHistoryCalendar from './ItemHistoryCalendar';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import './index.css';
 
 const getGroupColor = (groupName) => {
@@ -343,7 +343,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
         'Mã hàng (SKU)': item.sku,
         'Tên vật tư': item.name,
         'Đơn vị tính': item.unit,
-        'Tồn đầu kỳ': qtyStart,
+        'Tồn tháng trước': qtyStart,
       };
 
       let currentQty = qtyStart;
@@ -397,6 +397,45 @@ const Inventory = ({ items, setItems, fetchItems, transactions }) => {
     reportData.push(totalRow);
 
     const worksheet = XLSX.utils.json_to_sheet(reportData);
+
+    // Format Header (Dòng 1)
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const address = XLSX.utils.encode_col(C) + "1"; 
+      if (!worksheet[address]) continue;
+      worksheet[address].s = {
+        font: { bold: true, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "4F46E5" } }, // Indigo-600
+        alignment: { horizontal: "center", vertical: "center", wrapText: true },
+        border: {
+          top: { style: "thin", color: { auto: 1 } },
+          bottom: { style: "thin", color: { auto: 1 } },
+          left: { style: "thin", color: { auto: 1 } },
+          right: { style: "thin", color: { auto: 1 } }
+        }
+      };
+    }
+
+    // Tự động căn chỉnh độ rộng cột
+    const colWidths = Object.keys(reportData[0]).map(key => ({ 
+      wch: Math.max(key.length + 5, 12) 
+    }));
+    worksheet['!cols'] = colWidths;
+
+    // Format dòng TỔNG CỘNG (Dòng cuối)
+    const lastRowIndex = range.e.r + 1; // 1-indexed trong file Excel
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const address = XLSX.utils.encode_col(C) + lastRowIndex;
+      if (!worksheet[address]) continue;
+      worksheet[address].s = {
+        font: { bold: true, color: { rgb: "111827" } }, // Đen đậm
+        fill: { fgColor: { rgb: "F3F4F6" } }, // Nền xám nhạt
+        border: { 
+          top: { style: "medium", color: { rgb: "9CA3AF" } } 
+        }
+      };
+    }
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Xuat_Nhap_Ton");
     XLSX.writeFile(workbook, `Bao_Cao_XNT_${reportStartMonth}_den_${reportEndMonth}.xlsx`);
