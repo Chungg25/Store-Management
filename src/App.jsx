@@ -112,7 +112,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
   const filteredItems = useMemo(() => {
     return items.filter(i => {
       if (showImportantOnly && !i.isImportant) return false;
-      
+
       const lower = searchTerm.toLowerCase();
       const matchSearch = !searchTerm ||
         (i.name && i.name.toLowerCase().includes(lower)) ||
@@ -191,7 +191,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
         item.sku === sku ? { ...item, quantity: newQty } : item
       ));
     }
-    
+
     // Thêm log lịch sử tạm thời cho UI
     if (setTransactions) {
       const action = amount > 0 ? 'Nhập' : 'Xuất';
@@ -199,7 +199,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       const now = new Date();
       const timeStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().replace('T', ' ').substring(0, 19);
       const targetItem = items.find(i => i.sku === sku);
-      
+
       setTransactions(prev => [{
         "Thời gian": timeStr,
         "Mã hàng": sku,
@@ -287,6 +287,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       'Số lượng': '' // Để trống cho nhân viên tự điền khi kiểm kho
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
+    applyExcelStyle(worksheet, data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Tong_Vat_Tu");
     XLSX.writeFile(workbook, "Tong_Vat_Tu.xlsx");
@@ -301,6 +302,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       'Đơn vị': item.unit
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
+    applyExcelStyle(worksheet, data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Vat_Tu_Can_Nhap");
     XLSX.writeFile(workbook, "Vat_Tu_Can_Nhap.xlsx");
@@ -311,7 +313,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       alert("Vui lòng chọn đầy đủ tháng bắt đầu và kết thúc!");
       return;
     }
-    
+
     const startDate = new Date(`${reportStartMonth}-01T00:00:00`);
     const [endYear, endMonth] = reportEndMonth.split('-');
     const endDate = new Date(Number(endYear), Number(endMonth), 0, 23, 59, 59);
@@ -386,7 +388,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
           }
         });
         currentQty = currentQty + monthIn - monthOut;
-        
+
         row[`Nhập ${monthStr}`] = monthIn;
         row[`Xuất ${monthStr}`] = monthOut;
         row[`Tồn cuối ${monthStr}`] = currentQty;
@@ -405,7 +407,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       'Tên vật tư': 'TỔNG CỘNG',
       'Đơn vị tính': ''
     };
-    
+
     if (reportData.length > 0) {
       Object.keys(reportData[0]).forEach(key => {
         if (key !== 'Mã hàng (SKU)' && key !== 'Tên vật tư' && key !== 'Đơn vị tính') {
@@ -421,36 +423,15 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
         }
       });
     });
-    
+
     reportData.push(totalRow);
 
     const worksheet = XLSX.utils.json_to_sheet(reportData);
 
-    // Format Header (Dòng 1)
-    const range = XLSX.utils.decode_range(worksheet['!ref']);
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-      const address = XLSX.utils.encode_col(C) + "1"; 
-      if (!worksheet[address]) continue;
-      worksheet[address].s = {
-        font: { bold: true, color: { rgb: "FFFFFF" } },
-        fill: { fgColor: { rgb: "4F46E5" } }, // Indigo-600
-        alignment: { horizontal: "center", vertical: "center", wrapText: true },
-        border: {
-          top: { style: "thin", color: { auto: 1 } },
-          bottom: { style: "thin", color: { auto: 1 } },
-          left: { style: "thin", color: { auto: 1 } },
-          right: { style: "thin", color: { auto: 1 } }
-        }
-      };
-    }
-
-    // Tự động căn chỉnh độ rộng cột
-    const colWidths = Object.keys(reportData[0]).map(key => ({ 
-      wch: Math.max(key.length + 5, 12) 
-    }));
-    worksheet['!cols'] = colWidths;
+    applyExcelStyle(worksheet, reportData);
 
     // Format dòng TỔNG CỘNG (Dòng cuối)
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
     const lastRowIndex = range.e.r + 1; // 1-indexed trong file Excel
     for (let C = range.s.c; C <= range.e.c; ++C) {
       const address = XLSX.utils.encode_col(C) + lastRowIndex;
@@ -458,8 +439,12 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       worksheet[address].s = {
         font: { bold: true, color: { rgb: "111827" } }, // Đen đậm
         fill: { fgColor: { rgb: "F3F4F6" } }, // Nền xám nhạt
-        border: { 
-          top: { style: "medium", color: { rgb: "9CA3AF" } } 
+        alignment: { horizontal: "center", vertical: "center" },
+        border: {
+          top: { style: "medium", color: { rgb: "9CA3AF" } },
+          bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+          left: { style: "thin", color: { rgb: "E5E7EB" } },
+          right: { style: "thin", color: { rgb: "E5E7EB" } }
         }
       };
     }
@@ -496,10 +481,10 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
           </button>
         </div>
       </div>
-      
-      <div style={{ 
-        marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', 
-        background: 'linear-gradient(to right, #eff6ff, #e0e7ff)', 
+
+      <div style={{
+        marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap',
+        background: 'linear-gradient(to right, #eff6ff, #e0e7ff)',
         border: '1px solid #c7d2fe',
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
         borderRadius: '16px',
@@ -515,7 +500,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
 
         <h3 style={{ margin: 0, marginRight: 'auto', fontSize: '1.1rem', color: '#312e81', display: 'flex', alignItems: 'center', gap: '0.5rem', zIndex: 1, fontWeight: '700' }}>
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-          Báo cáo Xuất Nhập Tồn chuyên sâu
+          Báo cáo Xuất Nhập Tồn
         </h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', zIndex: 1 }}>
           <label style={{ fontWeight: '600', fontSize: '0.875rem', color: '#4338ca' }}>Từ tháng:</label>
@@ -525,9 +510,9 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
           <label style={{ fontWeight: '600', fontSize: '0.875rem', color: '#4338ca' }}>Đến tháng:</label>
           <input type="month" className="form-input" value={reportEndMonth} onChange={(e) => setReportEndMonth(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #a5b4fc', outline: 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }} />
         </div>
-        <button className="btn btn-primary" onClick={handleExportReport} style={{ 
-          background: 'linear-gradient(to right, #4f46e5, #4338ca)', 
-          padding: '0.6rem 1.5rem', 
+        <button className="btn btn-primary" onClick={handleExportReport} style={{
+          background: 'linear-gradient(to right, #4f46e5, #4338ca)',
+          padding: '0.6rem 1.5rem',
           borderRadius: '8px',
           fontWeight: '600',
           boxShadow: '0 4px 14px 0 rgba(79, 70, 229, 0.39)',
@@ -535,7 +520,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
           transition: 'all 0.2s ease',
           border: 'none'
         }}>
-          Tải Excel ngay
+          Tải Excel
         </button>
       </div>
 
@@ -801,7 +786,7 @@ const Transactions = ({ transactions, fetchItems }) => {
   const [filterMonth, setFilterMonth] = useState('');
   const [searchName, setSearchName] = useState('');
   const [filterAction, setFilterAction] = useState('');
-  
+
   const uniqueMonths = useMemo(() => {
     const months = new Set();
     transactions.forEach(t => {
@@ -818,22 +803,22 @@ const Transactions = ({ transactions, fetchItems }) => {
       let matchMonth = true;
       let matchName = true;
       let matchAction = true;
-      
+
       if (filterMonth && t['Thời gian']) {
         matchMonth = t['Thời gian'].startsWith(filterMonth);
       }
-      
+
       if (searchName) {
         const lowerSearch = searchName.toLowerCase();
         const nameMatch = t['Tên hàng']?.toLowerCase().includes(lowerSearch);
         const skuMatch = t['Mã hàng']?.toLowerCase().includes(lowerSearch);
         matchName = nameMatch || skuMatch;
       }
-      
+
       if (filterAction) {
         matchAction = t['Hành động'] === filterAction;
       }
-      
+
       return matchMonth && matchName && matchAction;
     });
   }, [transactions, filterMonth, searchName, filterAction]);
@@ -948,7 +933,7 @@ const OcrScanner = ({ items }) => {
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('data', JSON.stringify(ocrData.data));
-    
+
     try {
       const res = await fetch('/api/save-ocr', {
         method: 'POST',
@@ -1213,7 +1198,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     <>
       {/* Nền xám mờ khi mở menu trên mobile */}
       {isOpen && <div className="sidebar-overlay" onClick={() => setIsOpen(false)}></div>}
-      
+
       <div className={`sidebar ${isOpen ? 'open' : ''}`}>
         <div className="logo" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>DR. <span>SMILE</span></div>
@@ -1241,6 +1226,54 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       </div>
     </>
   );
+};
+
+
+const applyExcelStyle = (worksheet, data) => {
+  if (!worksheet['!ref']) return;
+  const range = XLSX.utils.decode_range(worksheet['!ref']);
+  
+  // Format Header (Dòng 1)
+  for (let C = range.s.c; C <= range.e.c; ++C) {
+    const address = XLSX.utils.encode_col(C) + "1";
+    if (!worksheet[address]) continue;
+    worksheet[address].s = {
+      font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+      fill: { fgColor: { rgb: "4F46E5" } }, // Indigo-600
+      alignment: { horizontal: "center", vertical: "center", wrapText: true },
+      border: {
+        top: { style: "thin", color: { auto: 1 } },
+        bottom: { style: "thin", color: { auto: 1 } },
+        left: { style: "thin", color: { auto: 1 } },
+        right: { style: "thin", color: { auto: 1 } }
+      }
+    };
+  }
+  
+  // Format Data Rows
+  for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const address = XLSX.utils.encode_col(C) + (R + 1);
+      if (!worksheet[address]) continue;
+      worksheet[address].s = {
+        border: {
+          top: { style: "thin", color: { rgb: "E5E7EB" } },
+          bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+          left: { style: "thin", color: { rgb: "E5E7EB" } },
+          right: { style: "thin", color: { rgb: "E5E7EB" } }
+        },
+        alignment: { vertical: "center", horizontal: typeof worksheet[address].v === 'number' ? 'right' : 'left' }
+      };
+    }
+  }
+
+  // Tự động căn chỉnh độ rộng cột
+  if (data && data.length > 0) {
+    const colWidths = Object.keys(data[0]).map(key => ({
+      wch: Math.max(key.length + 5, 15) // Tăng độ rộng xíu cho dễ nhìn
+    }));
+    worksheet['!cols'] = colWidths;
+  }
 };
 
 function App() {
