@@ -223,7 +223,7 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
 @app.get("/api/implants")
 def get_implants():
     try:
-        gc = gspread.service_account(filename=CREDENTIALS_PATH)
+        gc = gspread.service_account_from_dict(get_credentials_dict())
         sh = gc.open_by_key(SPREADSHEET_ID)
         try:
             ws = sh.worksheet('Implant')
@@ -252,6 +252,9 @@ def get_implants():
                 implants.append(clean_row)
         return implants
     except Exception as e:
+        import traceback
+        with open('error_log.txt', 'a', encoding='utf-8') as f:
+            f.write(traceback.format_exc() + "\n")
         raise HTTPException(status_code=500, detail=str(e))
 
 class ItemUpdate(BaseModel):
