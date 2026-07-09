@@ -223,7 +223,12 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
 @app.get("/api/implants")
 def get_implants():
     try:
-        gc = gspread.service_account_from_dict(get_credentials_dict())
+        google_creds = os.environ.get("GOOGLE_CREDENTIALS")
+        if google_creds:
+            creds_dict = json.loads(google_creds)
+            gc = gspread.service_account_from_dict(creds_dict)
+        else:
+            gc = gspread.service_account(filename=CREDENTIALS_PATH)
         sh = gc.open_by_key(SPREADSHEET_ID)
         try:
             ws = sh.worksheet('Implant')
