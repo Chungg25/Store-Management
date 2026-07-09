@@ -126,6 +126,7 @@ def get_items(type: str = "", background_tasks: BackgroundTasks = BackgroundTask
                 "name": row.get("Tên hàng"),
                 "unit": row.get("ĐVT") or row.get("Đơn vị tính") or row.get("Đơn vị", ""),
                 "quantity": qty,
+                "conversion": row.get("Quy đổi", ""),
                 "minThreshold": threshold,
                 "group": row.get("Nhóm", "") or row.get("Phân loại", ""),
                 "isImportant": str(sku).strip().lower() in important_skus
@@ -147,6 +148,75 @@ def get_transactions(type: str = "", background_tasks: BackgroundTasks = Backgro
     except Exception as e:
         _, _, _, error_sheet = get_sheets()
         if error_sheet: background_tasks.add_task(log_error, error_sheet, f"get_transactions error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ItemCreate(BaseModel):
+    name: str
+    unit: str
+    quantity: int
+    conversion: str
+    minThreshold: int
+    group: str
+
+@app.post("/api/items")
+def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = BackgroundTasks()):
+    try:
+        items_sheet, trans_sheet, _, error_sheet = get_sheets()
+        if not items_sheet or not trans_sheet:
+            raise Exception("Cannot connect to Google Sheets")
+            
+        records = items_sheet.get_all_records()
+        headers = items_sheet.row_values(1)
+        
+        max_stt = 0
+        max_sku_num = 0
+        
+        for row in records:
+            # Parse STT
+            try:
+                stt_val = int(row.get("STT", 0) or 0)
+                if stt_val > max_stt: max_stt = stt_val
+            except Exception:
+                pass
+            
+            # Parse SKU (Mã hàng) assuming format like SP001
+            sku_val = str(row.get("Mã hàng", "")).strip().upper()
+            if sku_val.startswith("SP"):
+                try:
+                    num_val = int(sku_val.replace("SP", ""))
+                    if num_val > max_sku_num: max_sku_num = num_val
+                except Exception:
+                    pass
+        
+        new_stt = max_stt + 1
+        new_sku = f"SP{max_sku_num + 1:03d}"
+        
+        # Build row array based on headers
+        new_row = [""] * len(headers)
+        for i, h in enumerate(headers):
+            h_lower = h.strip().lower()
+            if h_lower == "stt": new_row[i] = new_stt
+            elif h_lower == "mã hàng": new_row[i] = new_sku
+            elif h_lower == "tên hàng": new_row[i] = payload.name
+            elif h_lower in ["đvt", "đơn vị tính", "đơn vị"]: new_row[i] = payload.unit
+            elif h_lower == "số lượng": new_row[i] = payload.quantity
+            elif h_lower == "quy đổi": new_row[i] = payload.conversion
+            elif h_lower == "hạn mức": new_row[i] = payload.minThreshold
+            elif h_lower in ["nhóm", "phân loại"]: new_row[i] = payload.group
+        
+        # If headers are missing some columns, we should append them but for now assume they exist
+        items_sheet.append_row(new_row)
+        
+        if payload.quantity > 0:
+            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
+            timestamp = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            background_tasks.add_task(log_transaction, trans_sheet, timestamp, new_sku, payload.name, "Nhập", payload.quantity, payload.unit, "Đan")
+            
+        return {"message": "Tạo thành công", "sku": new_sku}
+    except Exception as e:
+        _, _, _, error_sheet = get_sheets()
+        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"create_item error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 class ItemUpdate(BaseModel):

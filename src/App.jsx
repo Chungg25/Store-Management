@@ -99,6 +99,10 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
   const [transactionQty, setTransactionQty] = useState(1);
   const [popupError, setPopupError] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addFormData, setAddFormData] = useState({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '' });
+  const [isAdding, setIsAdding] = useState(false);
+
   const [reportStartMonth, setReportStartMonth] = useState('');
   const [reportEndMonth, setReportEndMonth] = useState('');
   const itemsPerPage = 10;
@@ -277,6 +281,30 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       setPopupError("Lỗi kết nối Server.");
       fetchItems(); // Lỗi thì tải lại số cũ
     });
+  };
+
+  const handleAddSubmit = async (e) => {
+    e.preventDefault();
+    setIsAdding(true);
+    try {
+      const res = await fetch('/api/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addFormData)
+      });
+      if (res.ok) {
+        setIsAddModalOpen(false);
+        setAddFormData({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '' });
+        fetchItems();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setPopupError("Lỗi thêm mới: " + (data.detail || "Unknown error"));
+      }
+    } catch (err) {
+      setPopupError("Lỗi kết nối Server.");
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   const handleExportTotal = () => {
@@ -593,6 +621,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
                       {item.quantity}
                     </span>
                   </td>
+                  <td>{item.conversion || ''}</td>
                   <td>
                     {isEditing ? (
                       <input
@@ -715,7 +744,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
             })}
             {items.length === 0 && (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
                   Không có dữ liệu hoặc đang tải...
                 </td>
               </tr>
@@ -750,6 +779,57 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
         </div>
       )}
 
+      {isAddModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '500px' }}>
+            <h3 style={{ marginTop: 0 }}>Thêm vật tư mới</h3>
+            <form onSubmit={handleAddSubmit}>
+              <div style={{ marginBottom: '1rem' }}>
+                <label>Tên hàng *</label>
+                <input required type="text" className="form-input" value={addFormData.name} onChange={e => setAddFormData({...addFormData, name: e.target.value})} />
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                  <label>ĐVT *</label>
+                  <input required type="text" className="form-input" value={addFormData.unit} onChange={e => setAddFormData({...addFormData, unit: e.target.value})} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label>Số lượng *</label>
+                  <input required type="number" className="form-input" value={addFormData.quantity} onChange={e => setAddFormData({...addFormData, quantity: parseInt(e.target.value) || 0})} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                  <label>Quy đổi</label>
+                  <input type="text" className="form-input" value={addFormData.conversion} onChange={e => setAddFormData({...addFormData, conversion: e.target.value})} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label>Hạn mức *</label>
+                  <input required type="number" className="form-input" value={addFormData.minThreshold} onChange={e => setAddFormData({...addFormData, minThreshold: parseInt(e.target.value) || 0})} />
+                </div>
+              </div>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label>Nhóm *</label>
+                <select required className="form-input" value={addFormData.group} onChange={e => setAddFormData({...addFormData, group: e.target.value})}>
+                  <option value="">-- Chọn nhóm --</option>
+                  {uniqueGroups.map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn" onClick={() => setIsAddModalOpen(false)}>Hủy</button>
+                <button type="submit" className="btn btn-primary" disabled={isAdding}>
+                  {isAdding ? "Đang lưu..." : "Xác nhận"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {popupError && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -891,7 +971,7 @@ const Transactions = ({ transactions, fetchItems }) => {
             ))}
             {filteredTransactions.length === 0 && (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
                   Chưa có lịch sử giao dịch.
                 </td>
               </tr>
