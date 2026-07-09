@@ -501,7 +501,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)} style={{ background: '#3b82f6', color: 'white', border: 'none' }}>
-            + Thêm vật tư
+            Thêm vật tư
           </button>
           <button className="btn btn-secondary" onClick={handleExportTotal} style={{ backgroundColor: '#10B981', color: 'white', border: 'none' }}>
             Xuất tổng vật tư
@@ -795,31 +795,31 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
             <form onSubmit={handleAddSubmit}>
               <div style={{ marginBottom: '1rem' }}>
                 <label>Tên hàng *</label>
-                <input required type="text" className="form-input" value={addFormData.name} onChange={e => setAddFormData({...addFormData, name: e.target.value})} />
+                <input required type="text" className="form-input" value={addFormData.name} onChange={e => setAddFormData({ ...addFormData, name: e.target.value })} />
               </div>
               <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
                 <div style={{ flex: 1 }}>
                   <label>ĐVT *</label>
-                  <input required type="text" className="form-input" value={addFormData.unit} onChange={e => setAddFormData({...addFormData, unit: e.target.value})} />
+                  <input required type="text" className="form-input" value={addFormData.unit} onChange={e => setAddFormData({ ...addFormData, unit: e.target.value })} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label>Số lượng *</label>
-                  <input required type="number" className="form-input" value={addFormData.quantity} onChange={e => setAddFormData({...addFormData, quantity: parseInt(e.target.value) || 0})} />
+                  <input required type="number" className="form-input" value={addFormData.quantity} onChange={e => setAddFormData({ ...addFormData, quantity: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
                 <div style={{ flex: 1 }}>
                   <label>Quy đổi</label>
-                  <input type="text" className="form-input" value={addFormData.conversion} onChange={e => setAddFormData({...addFormData, conversion: e.target.value})} />
+                  <input type="text" className="form-input" value={addFormData.conversion} onChange={e => setAddFormData({ ...addFormData, conversion: e.target.value })} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label>Hạn mức *</label>
-                  <input required type="number" className="form-input" value={addFormData.minThreshold} onChange={e => setAddFormData({...addFormData, minThreshold: parseInt(e.target.value) || 0})} />
+                  <input required type="number" className="form-input" value={addFormData.minThreshold} onChange={e => setAddFormData({ ...addFormData, minThreshold: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
               <div style={{ marginBottom: '1.5rem' }}>
                 <label>Nhóm *</label>
-                <select required className="form-input" value={addFormData.group} onChange={e => setAddFormData({...addFormData, group: e.target.value})}>
+                <select required className="form-input" value={addFormData.group} onChange={e => setAddFormData({ ...addFormData, group: e.target.value })}>
                   <option value="">-- Chọn nhóm --</option>
                   {uniqueGroups.map(g => (
                     <option key={g} value={g}>{g}</option>
@@ -1299,6 +1299,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           <Link to="/inventory" className={`nav-link ${isActive('/inventory')}`} onClick={() => setIsOpen(false)}>
             <Package size={20} /> Kho vật tư
           </Link>
+          <Link to="/implant" className={`nav-link ${isActive('/implant')}`} onClick={() => setIsOpen(false)}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 2 4 4"/><path d="m17 7 3-3"/><path d="M19 9 8.7 19.3c-1 1-2.5 1-3.4 0l-.6-.6c-1-1-1-2.5 0-3.4L15 5"/><path d="m9 11 4 4"/><path d="m5 19-3 3"/><path d="m14 4 6 6"/></svg> Kho Implant
+          </Link>
           <Link to="/transactions" className={`nav-link ${isActive('/transactions')}`} onClick={() => setIsOpen(false)}>
             <Activity size={20} /> Lịch sử
           </Link>
@@ -1318,7 +1321,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 const applyExcelStyle = (worksheet, data) => {
   if (!worksheet['!ref']) return;
   const range = XLSX.utils.decode_range(worksheet['!ref']);
-  
+
   // Format Header (Dòng 1)
   for (let C = range.s.c; C <= range.e.c; ++C) {
     const address = XLSX.utils.encode_col(C) + "1";
@@ -1335,15 +1338,15 @@ const applyExcelStyle = (worksheet, data) => {
       }
     };
   }
-  
+
   // Nhận diện cột Nhập/Xuất để đổi màu chữ
   const headerTypes = {};
   for (let C = range.s.c; C <= range.e.c; ++C) {
     const address = XLSX.utils.encode_col(C) + "1";
     if (worksheet[address] && worksheet[address].v) {
-       const val = worksheet[address].v.toString().toLowerCase();
-       if (val.includes("nhập")) headerTypes[C] = "nhap";
-       else if (val.includes("xuất")) headerTypes[C] = "xuat";
+      const val = worksheet[address].v.toString().toLowerCase();
+      if (val.includes("nhập")) headerTypes[C] = "nhap";
+      else if (val.includes("xuất")) headerTypes[C] = "xuat";
     }
   }
 
@@ -1352,17 +1355,17 @@ const applyExcelStyle = (worksheet, data) => {
     for (let C = range.s.c; C <= range.e.c; ++C) {
       const address = XLSX.utils.encode_col(C) + (R + 1);
       if (!worksheet[address]) continue;
-      
+
       let fontColor = "111827"; // mặc định xám đen
       let isBold = false;
       if (headerTypes[C] === "nhap") {
-          fontColor = "15803D"; // xanh lá đậm
-          isBold = true;
+        fontColor = "15803D"; // xanh lá đậm
+        isBold = true;
       } else if (headerTypes[C] === "xuat") {
-          fontColor = "B91C1C"; // đỏ đậm
-          isBold = true;
+        fontColor = "B91C1C"; // đỏ đậm
+        isBold = true;
       }
-      
+
       worksheet[address].s = {
         font: { color: { rgb: fontColor }, bold: isBold },
         border: {
