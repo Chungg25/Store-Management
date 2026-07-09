@@ -498,6 +498,9 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)} style={{ background: '#3b82f6', color: 'white', border: 'none' }}>
+            + Thêm vật tư
+          </button>
           <button className="btn btn-secondary" onClick={handleExportTotal} style={{ backgroundColor: '#10B981', color: 'white', border: 'none' }}>
             Xuất tổng vật tư
           </button>
@@ -584,6 +587,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
                 Tồn kho{getSortIndicator('quantity')}
               </th>
               <th>Đơn vị</th>
+              <th>Quy đổi</th>
               <th onClick={() => requestSort('minThreshold')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                 Hạn mức{getSortIndicator('minThreshold')}
               </th>
