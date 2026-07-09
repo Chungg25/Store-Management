@@ -3,6 +3,8 @@ import { LayoutDashboard, Package, Activity, ScanLine, Settings, Check, X, Menu 
 import { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ItemHistoryCalendar from './ItemHistoryCalendar';
+import ImplantStore from './ImplantStore';
+
 import * as XLSX from 'xlsx-js-style';
 import './index.css';
 
@@ -1425,6 +1427,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard items={items} transactions={transactions} />} />
             <Route path="/inventory" element={<Inventory items={items} setItems={setItems} fetchItems={fetchAllData} transactions={transactions} setTransactions={setTransactions} />} />
+            <Route path="/implant" element={<ImplantStore />} />
             <Route path="/item/:sku" element={<ItemHistoryCalendar items={items} transactions={transactions} />} />
             <Route path="/transactions" element={<Transactions transactions={transactions} fetchItems={fetchAllData} />} />
             <Route path="/ocr" element={<OcrScanner items={items} />} />

@@ -219,6 +219,33 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
         if error_sheet: background_tasks.add_task(log_error, error_sheet, f"create_item error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/api/implants")
+def get_implants():
+    try:
+        gc = gspread.service_account(filename=CREDENTIALS_PATH)
+        sh = gc.open_by_key(SPREADSHEET_ID)
+        try:
+            ws = sh.worksheet('Implant')
+        except:
+            ws = sh.worksheet('implant')
+        records = ws.get_all_records()
+        implants = []
+        for row in records:
+            clean_row = {}
+            for k, v in row.items():
+                k_clean = str(k).strip()
+                if 'M' in k_clean: clean_row['sku'] = v
+                elif 'H' in k_clean: clean_row['name'] = v
+                elif 'V' in k_clean: clean_row['unit'] = v
+                elif 'S' in k_clean and 'l' in k_clean: clean_row['quantity'] = v
+                elif 'STT' in k_clean: clean_row['id'] = v
+            if str(clean_row.get('sku', '')).strip(): # Only include rows with a valid SKU
+                implants.append(clean_row)
+        return implants
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 class ItemUpdate(BaseModel):
     quantity: int
     changeAmount: int 
