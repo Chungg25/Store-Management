@@ -49,7 +49,7 @@ const ImplantStore = () => {
     let result = [...implants];
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
-      result = result.filter(item => 
+      result = result.filter(item =>
         (item.name || "").toLowerCase().includes(lowerSearch) ||
         (item.sku || "").toLowerCase().includes(lowerSearch) ||
         (item.category || "").toLowerCase().includes(lowerSearch)
@@ -63,10 +63,10 @@ const ImplantStore = () => {
       result.sort((a, b) => {
         let valA = a[sortConfig.key];
         let valB = b[sortConfig.key];
-        
+
         if (sortConfig.key === 'quantity') {
-           valA = Number(valA) || 0;
-           valB = Number(valB) || 0;
+          valA = Number(valA) || 0;
+          valB = Number(valB) || 0;
         }
 
         if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -87,9 +87,9 @@ const ImplantStore = () => {
       'ĐVT': item.unit || '',
       'Tồn kho': item.quantity || 0
     }));
-    
+
     const worksheet = XLSX.utils.json_to_sheet(data);
-    
+
     if (worksheet['!ref']) {
       const range = XLSX.utils.decode_range(worksheet['!ref']);
       for (let C = range.s.c; C <= range.e.c; ++C) {
@@ -104,7 +104,7 @@ const ImplantStore = () => {
       }
       worksheet['!cols'] = Object.keys(data[0]).map(k => ({ wch: Math.max(k.length + 5, 15) }));
     }
-    
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Implant");
     XLSX.writeFile(workbook, "Kho_Implant.xlsx");
@@ -112,7 +112,7 @@ const ImplantStore = () => {
 
   return (
     <div className="page-content" style={{ animation: 'fadeIn 0.3s ease' }}>
-      
+
       <div style={{
         marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem',
         background: 'linear-gradient(to right, #eff6ff, #e0e7ff)',
@@ -130,12 +130,11 @@ const ImplantStore = () => {
 
         <div style={{ zIndex: 1 }}>
           <h2 style={{ margin: 0, color: '#312e81', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '700' }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 2 4 4"/><path d="m17 7 3-3"/><path d="M19 9 8.7 19.3c-1 1-2.5 1-3.4 0l-.6-.6c-1-1-1-2.5 0-3.4L15 5"/><path d="m9 11 4 4"/><path d="m5 19-3 3"/><path d="m14 4 6 6"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 2 4 4" /><path d="m17 7 3-3" /><path d="M19 9 8.7 19.3c-1 1-2.5 1-3.4 0l-.6-.6c-1-1-1-2.5 0-3.4L15 5" /><path d="m9 11 4 4" /><path d="m5 19-3 3" /><path d="m14 4 6 6" /></svg>
             Kho Implant
           </h2>
-          <p style={{ margin: '0.5rem 0 0 0', color: '#4f46e5', fontWeight: '500' }}>Tra cứu tồn kho các loại trụ, abutment, và phụ kiện Implant (Chỉ xem)</p>
         </div>
-        
+
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', zIndex: 1 }}>
           <button className="btn btn-primary" onClick={fetchImplants} disabled={loading} style={{ background: '#4f46e5', color: 'white', border: 'none', boxShadow: '0 4px 14px 0 rgba(79, 70, 229, 0.39)', padding: '0.5rem 1rem' }}>
             {loading ? "Đang tải..." : "Làm mới dữ liệu"}
@@ -168,7 +167,7 @@ const ImplantStore = () => {
             ))}
           </select>
         </div>
-        
+
         <table style={{ borderCollapse: 'separate', borderSpacing: '0 0.5rem' }}>
           <thead>
             <tr style={{ backgroundColor: '#f3f4f6' }}>
@@ -193,8 +192,8 @@ const ImplantStore = () => {
                 <td style={{ color: '#374151', padding: '1rem' }}>{item.name}</td>
                 <td style={{ color: '#6b7280', padding: '1rem' }}>{item.unit}</td>
                 <td style={{ padding: '1rem', borderTopRightRadius: '8px', borderBottomRightRadius: '8px' }}>
-                  <span className={`badge`} style={{ 
-                    backgroundColor: Number(item.quantity) > 0 ? '#10b981' : '#f3f4f6', 
+                  <span className={`badge`} style={{
+                    backgroundColor: Number(item.quantity) > 0 ? '#10b981' : '#f3f4f6',
                     color: Number(item.quantity) > 0 ? 'white' : '#6b7280',
                     padding: '0.35rem 0.85rem',
                     fontSize: '0.95rem',
@@ -220,7 +219,8 @@ const ImplantStore = () => {
             )}
           </tbody>
         </table>
-        <style dangerouslySetInnerHTML={{__html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           .table-row-hover:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
