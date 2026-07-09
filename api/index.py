@@ -231,6 +231,7 @@ def get_implants():
             ws = sh.worksheet('implant')
         records = ws.get_all_records()
         implants = []
+        current_category = "Khác"
         for row in records:
             clean_row = {}
             for k, v in row.items():
@@ -240,7 +241,14 @@ def get_implants():
                 elif 'V' in k_clean: clean_row['unit'] = v
                 elif 'S' in k_clean and 'l' in k_clean: clean_row['quantity'] = v
                 elif 'STT' in k_clean: clean_row['id'] = v
-            if str(clean_row.get('sku', '')).strip(): # Only include rows with a valid SKU
+            
+            sku_val = str(clean_row.get('sku', '')).strip()
+            name_val = str(clean_row.get('name', '')).strip()
+            
+            if not sku_val and name_val:
+                current_category = name_val
+            elif sku_val:
+                clean_row['category'] = current_category
                 implants.append(clean_row)
         return implants
     except Exception as e:
