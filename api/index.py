@@ -158,6 +158,7 @@ class ItemCreate(BaseModel):
     conversion: str
     minThreshold: int
     group: str
+    date: str = None
 
 @app.post("/api/items")
 def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = BackgroundTasks()):
@@ -210,7 +211,11 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
         
         if payload.quantity > 0:
             vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
-            timestamp = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now_time = datetime.now(vn_tz) if vn_tz else datetime.now()
+            if payload.date:
+                timestamp = f"{payload.date} {now_time.strftime('%H:%M:%S')}"
+            else:
+                timestamp = now_time.strftime("%Y-%m-%d %H:%M:%S")
             background_tasks.add_task(log_transaction, trans_sheet, timestamp, new_sku, payload.name, "Nhập", payload.quantity, payload.unit, "Đan")
             
         return {"message": "Tạo thành công", "sku": new_sku}

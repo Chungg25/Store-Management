@@ -103,7 +103,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
   const [popupError, setPopupError] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [addFormData, setAddFormData] = useState({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '' });
+  const [addFormData, setAddFormData] = useState({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '', date: '' });
   const [isAdding, setIsAdding] = useState(false);
 
   const [reportStartMonth, setReportStartMonth] = useState('');
@@ -305,7 +305,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       });
       if (res.ok) {
         setIsAddModalOpen(false);
-        setAddFormData({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '' });
+        setAddFormData({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '', date: '' });
         fetchItems();
       } else {
         const data = await res.json().catch(() => ({}));
@@ -509,7 +509,11 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)} style={{ background: '#3b82f6', color: 'white', border: 'none' }}>
+          <button className="btn btn-primary" onClick={() => {
+            const today = new Date();
+            setAddFormData({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '', date: new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().substring(0, 10) });
+            setIsAddModalOpen(true);
+          }} style={{ background: '#3b82f6', color: 'white', border: 'none' }}>
             Thêm vật tư
           </button>
           <button className="btn btn-secondary" onClick={handleExportTotal} style={{ backgroundColor: '#10B981', color: 'white', border: 'none' }}>
@@ -835,14 +839,20 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
                   <input required type="number" className="form-input" value={addFormData.minThreshold} onChange={e => setAddFormData({ ...addFormData, minThreshold: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label>Nhóm *</label>
-                <select required className="form-input" value={addFormData.group} onChange={e => setAddFormData({ ...addFormData, group: e.target.value })}>
-                  <option value="">-- Chọn nhóm --</option>
-                  {uniqueGroups.map(g => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                </select>
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ flex: 1 }}>
+                  <label>Nhóm *</label>
+                  <select required className="form-input" value={addFormData.group} onChange={e => setAddFormData({ ...addFormData, group: e.target.value })}>
+                    <option value="">-- Chọn nhóm --</option>
+                    {uniqueGroups.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label>Ngày nhập</label>
+                  <input type="date" className="form-input" value={addFormData.date} onChange={e => setAddFormData({ ...addFormData, date: e.target.value })} />
+                </div>
               </div>
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn" onClick={() => setIsAddModalOpen(false)}>Hủy</button>
