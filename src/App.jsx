@@ -335,7 +335,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
   };
 
   const handleExportLowStock = () => {
-    const lowStockItems = filteredItems.filter(item => item.quantity <= item.minThreshold);
+    const lowStockItems = filteredItems.filter(item => item.minThreshold > 0 && item.quantity <= item.minThreshold);
     const data = lowStockItems.map(item => ({
       'Tên vật tư': item.name,
       'Tồn kho': item.quantity,
@@ -616,7 +616,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
           </thead>
           <tbody>
             {currentItems.map(item => {
-              const isLowStock = item.minThreshold > 0 && item.quantity < item.minThreshold;
+              const isLowStock = item.minThreshold > 0 && item.quantity <= item.minThreshold;
               const isEditing = editingSku === item.sku;
 
               return (
