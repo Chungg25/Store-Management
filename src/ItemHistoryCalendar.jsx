@@ -103,7 +103,7 @@ const ItemHistoryCalendar = ({ items, transactions }) => {
         <button 
           className="btn" 
           style={{ padding: '0.5rem', borderRadius: '50%', background: 'white', border: '1px solid var(--border)' }}
-          onClick={() => navigate('/inventory')}
+          onClick={() => navigate(-1)}
         >
           <ArrowLeft size={20} />
         </button>
