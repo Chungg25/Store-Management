@@ -207,7 +207,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       const person = action === 'Nhập' ? 'Đan' : 'Bình';
       const now = new Date();
       let dateStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().substring(0, 10);
-      if (action === 'Nhập' && transactionDate) dateStr = transactionDate;
+      if (transactionDate) dateStr = transactionDate;
       const timeStr = `${dateStr} ${new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().substring(11, 19)}`;
       const targetItem = items.find(i => i.sku === sku);
 
@@ -229,7 +229,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       body: JSON.stringify({ 
         quantity: newQty, 
         changeAmount: amount,
-        date: (amount > 0 && transactionDate) ? transactionDate : null
+        date: transactionDate || null
       })
     }).then(async res => {
       if (!res.ok) {
@@ -691,15 +691,13 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
                             value={transactionQty}
                             onChange={(e) => setTransactionQty(Number(e.target.value))}
                           />
-                          {transactionType === 'Nhập' && (
-                            <input
-                              type="date"
-                              className="form-input"
-                              style={{ padding: '0.25rem', fontSize: '0.875rem', width: '130px' }}
-                              value={transactionDate}
-                              onChange={(e) => setTransactionDate(e.target.value)}
-                            />
-                          )}
+                          <input
+                            type="date"
+                            className="form-input"
+                            style={{ padding: '0.25rem', fontSize: '0.875rem', width: '130px' }}
+                            value={transactionDate}
+                            onChange={(e) => setTransactionDate(e.target.value)}
+                          />
                           <button
                             className="btn btn-primary"
                             style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#10B981', marginLeft: '4px' }}
