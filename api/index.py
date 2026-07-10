@@ -266,6 +266,7 @@ class ItemUpdate(BaseModel):
     quantity: int
     changeAmount: int 
     type: str = "quan_trong"
+    date: str = None
 
 class ItemDetailsUpdate(BaseModel):
     name: str
@@ -351,7 +352,11 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
         items_sheet.update_cell(row_idx, col_qty, new_quantity)
         
         vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
-        timestamp = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_time = datetime.now(vn_tz) if vn_tz else datetime.now()
+        if payload.date:
+            timestamp = f"{payload.date} {now_time.strftime('%H:%M:%S')}"
+        else:
+            timestamp = now_time.strftime("%Y-%m-%d %H:%M:%S")
         action = "Nhập" if payload.changeAmount > 0 else "Xuất"
         person = "Đan" if action == "Nhập" else "Bình"
         amount = abs(payload.changeAmount)

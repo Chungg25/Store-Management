@@ -99,6 +99,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
   const [transactionSku, setTransactionSku] = useState(null);
   const [transactionType, setTransactionType] = useState(null);
   const [transactionQty, setTransactionQty] = useState(1);
+  const [transactionDate, setTransactionDate] = useState('');
   const [popupError, setPopupError] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -174,6 +175,8 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
     setTransactionSku(sku);
     setTransactionType(type);
     setTransactionQty(1);
+    const today = new Date();
+    setTransactionDate(new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().substring(0, 10));
   };
 
   const handleConfirmTransaction = async (item) => {
@@ -203,7 +206,9 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       const action = amount > 0 ? 'Nhập' : 'Xuất';
       const person = action === 'Nhập' ? 'Đan' : 'Bình';
       const now = new Date();
-      const timeStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().replace('T', ' ').substring(0, 19);
+      let dateStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().substring(0, 10);
+      if (action === 'Nhập' && transactionDate) dateStr = transactionDate;
+      const timeStr = `${dateStr} ${new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().substring(11, 19)}`;
       const targetItem = items.find(i => i.sku === sku);
 
       setTransactions(prev => [{
@@ -221,7 +226,11 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
     fetch(`/api/items/${sku}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quantity: newQty, changeAmount: amount })
+      body: JSON.stringify({ 
+        quantity: newQty, 
+        changeAmount: amount,
+        date: (amount > 0 && transactionDate) ? transactionDate : null
+      })
     }).then(async res => {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -676,6 +685,15 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
                             value={transactionQty}
                             onChange={(e) => setTransactionQty(Number(e.target.value))}
                           />
+                          {transactionType === 'Nhập' && (
+                            <input
+                              type="date"
+                              className="form-input"
+                              style={{ padding: '0.25rem', fontSize: '0.875rem', width: '130px' }}
+                              value={transactionDate}
+                              onChange={(e) => setTransactionDate(e.target.value)}
+                            />
+                          )}
                           <button
                             className="btn btn-primary"
                             style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#10B981', marginLeft: '4px' }}
