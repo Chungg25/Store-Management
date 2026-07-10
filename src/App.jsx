@@ -234,7 +234,9 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
     }).then(async res => {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setPopupError("Lỗi đồng bộ Server: " + (data.detail || "Ghi sai cột"));
+        let err = data.detail || "Ghi sai cột";
+        if (typeof err === "object") err = JSON.stringify(err);
+        setPopupError("Lỗi đồng bộ Server: " + err);
         fetchItems(); // Lỗi thì tải lại số cũ
       } else {
         // Tải lại API sau 3 giây để lấy dữ liệu chuẩn nhất từ máy chủ

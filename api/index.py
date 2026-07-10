@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 from pydantic import BaseModel
 import gspread
 from dotenv import load_dotenv
@@ -271,7 +272,7 @@ class ItemUpdate(BaseModel):
     quantity: int
     changeAmount: int 
     type: str = "quan_trong"
-    date: str = None
+    date: Optional[str] = None
 
 class ItemDetailsUpdate(BaseModel):
     name: str
