@@ -384,8 +384,8 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
                     implant_ws = sh.worksheet('implant')
                     
                 implant_idx_map = get_column_indices(implant_ws)
-                implant_col_sku = implant_idx_map.get("mã hàng") or implant_col_sku
-                implant_col_qty = implant_idx_map.get("số lượng") or implant_col_qty
+                implant_col_sku = implant_idx_map.get("mã hàng")
+                implant_col_qty = implant_idx_map.get("số lượng")
                 
                 # Default indices if mapping fails for some reason
                 if not implant_col_sku: implant_col_sku = 2
