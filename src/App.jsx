@@ -183,9 +183,8 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
   const handleConfirmTransaction = async (item) => {
     if (transactionQty <= 0) return;
     
-    const cleanItemName = (item.name || '').trim().toLowerCase();
-    const relatedImplants = implants.filter(imp => (imp.category || '').trim().toLowerCase() === cleanItemName);
-    if (relatedImplants.length > 0 && !transactionSubSku) {
+    const isImplantItem = (item.group || '').toLowerCase().includes('implant');
+    if (isImplantItem && implants.length > 0 && !transactionSubSku) {
       setPopupError("Vui lòng chọn Kích thước / Size!");
       return;
     }
@@ -198,7 +197,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
     
     let subName = '';
     if (transactionSubSku) {
-      subName = relatedImplants.find(imp => imp.sku === transactionSubSku)?.name || '';
+      subName = implants.find(imp => imp.sku === transactionSubSku)?.name || '';
     }
     
     await handleUpdateQuantity(item.sku, item.quantity, amount, transactionSubSku, subName);
@@ -719,19 +718,28 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
                             onChange={(e) => setTransactionDate(e.target.value)}
                           />
                           {(() => {
-                            const cleanItemName = (item.name || '').trim().toLowerCase();
-                            const relatedImplants = implants.filter(imp => (imp.category || '').trim().toLowerCase() === cleanItemName);
-                            if (relatedImplants.length > 0) {
+                            const isImplantItem = (item.group || '').toLowerCase().includes('implant');
+                            if (isImplantItem && implants.length > 0) {
+                              const groupedImplants = implants.reduce((acc, imp) => {
+                                const cat = imp.category || 'Khác';
+                                if (!acc[cat]) acc[cat] = [];
+                                acc[cat].push(imp);
+                                return acc;
+                              }, {});
                               return (
                                 <select 
                                   className="form-input" 
-                                  style={{ padding: '0.25rem', fontSize: '0.875rem', width: '120px' }}
+                                  style={{ padding: '0.25rem', fontSize: '0.875rem', width: '130px', marginLeft: '4px' }}
                                   value={transactionSubSku}
                                   onChange={e => setTransactionSubSku(e.target.value)}
                                 >
                                   <option value="">Chọn Size</option>
-                                  {relatedImplants.map(imp => (
-                                    <option key={imp.sku} value={imp.sku}>{imp.name}</option>
+                                  {Object.entries(groupedImplants).map(([category, groupItems]) => (
+                                    <optgroup key={category} label={category}>
+                                      {groupItems.map(imp => (
+                                        <option key={imp.sku} value={imp.sku}>{imp.name}</option>
+                                      ))}
+                                    </optgroup>
                                   ))}
                                 </select>
                               );
