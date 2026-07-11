@@ -183,8 +183,9 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
   const handleConfirmTransaction = async (item) => {
     if (transactionQty <= 0) return;
     
-    const isImplantItem = (item.group || '').toLowerCase().includes('implant');
-    if (isImplantItem && implants.length > 0 && !transactionSubSku) {
+    const cleanItemName = (item.name || '').trim().toLowerCase();
+    const relatedImplants = implants.filter(imp => (imp.category || '').trim().toLowerCase() === cleanItemName);
+    if (relatedImplants.length > 0 && !transactionSubSku) {
       setPopupError("Vui lòng chọn Kích thước / Size!");
       return;
     }
@@ -718,14 +719,9 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
                             onChange={(e) => setTransactionDate(e.target.value)}
                           />
                           {(() => {
-                            const isImplantItem = (item.group || '').toLowerCase().includes('implant');
-                            if (isImplantItem && implants.length > 0) {
-                              const groupedImplants = implants.reduce((acc, imp) => {
-                                const cat = imp.category || 'Khác';
-                                if (!acc[cat]) acc[cat] = [];
-                                acc[cat].push(imp);
-                                return acc;
-                              }, {});
+                            const cleanItemName = (item.name || '').trim().toLowerCase();
+                            const relatedImplants = implants.filter(imp => (imp.category || '').trim().toLowerCase() === cleanItemName);
+                            if (relatedImplants.length > 0) {
                               return (
                                 <select 
                                   className="form-input" 
@@ -734,12 +730,8 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
                                   onChange={e => setTransactionSubSku(e.target.value)}
                                 >
                                   <option value="">Chọn Size</option>
-                                  {Object.entries(groupedImplants).map(([category, groupItems]) => (
-                                    <optgroup key={category} label={category}>
-                                      {groupItems.map(imp => (
-                                        <option key={imp.sku} value={imp.sku}>{imp.name}</option>
-                                      ))}
-                                    </optgroup>
+                                  {relatedImplants.map(imp => (
+                                    <option key={imp.sku} value={imp.sku}>{imp.name}</option>
                                   ))}
                                 </select>
                               );
