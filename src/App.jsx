@@ -87,7 +87,7 @@ const Dashboard = ({ items, transactions }) => {
   );
 };
 
-const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions }) => {
+const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions, implants = [] }) => {
   const [showImportantOnly, setShowImportantOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
