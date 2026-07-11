@@ -173,10 +173,10 @@ const ImplantStore = () => {
             <tr style={{ backgroundColor: '#f3f4f6' }}>
               <th onClick={() => requestSort('id')} style={{ cursor: 'pointer', userSelect: 'none', borderRadius: '8px 0 0 8px', padding: '1rem' }}>STT{getSortIndicator('id')}</th>
               <th onClick={() => requestSort('sku')} style={{ cursor: 'pointer', userSelect: 'none', padding: '1rem' }}>Mã hàng{getSortIndicator('sku')}</th>
-              <th onClick={() => requestSort('category')} style={{ cursor: 'pointer', userSelect: 'none', padding: '1rem' }}>Hãng / Loại{getSortIndicator('category')}</th>
               <th onClick={() => requestSort('name')} style={{ cursor: 'pointer', userSelect: 'none', padding: '1rem' }}>Kích thước / Tên chi tiết{getSortIndicator('name')}</th>
               <th style={{ padding: '1rem' }}>ĐVT</th>
-              <th onClick={() => requestSort('quantity')} style={{ cursor: 'pointer', userSelect: 'none', borderRadius: '0 8px 8px 0', padding: '1rem' }}>Tồn kho{getSortIndicator('quantity')}</th>
+              <th onClick={() => requestSort('quantity')} style={{ cursor: 'pointer', userSelect: 'none', padding: '1rem' }}>Tồn kho{getSortIndicator('quantity')}</th>
+              <th onClick={() => requestSort('category')} style={{ cursor: 'pointer', userSelect: 'none', borderRadius: '0 8px 8px 0', padding: '1rem' }}>Hãng / Loại{getSortIndicator('category')}</th>
             </tr>
           </thead>
           <tbody>
@@ -184,14 +184,9 @@ const ImplantStore = () => {
               <tr key={item.sku || idx} style={{ backgroundColor: 'white', transition: 'all 0.2s ease', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' }} className="table-row-hover">
                 <td style={{ color: '#6b7280', fontSize: '0.875rem', padding: '1rem', borderTopLeftRadius: '8px', borderBottomLeftRadius: '8px' }}>{item.id}</td>
                 <td style={{ fontWeight: '600', color: '#111827', padding: '1rem' }}>{item.sku}</td>
-                <td style={{ padding: '1rem' }}>
-                  <span style={{ backgroundColor: '#e0e7ff', color: '#4338ca', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.875rem', fontWeight: '500', display: 'inline-block' }}>
-                    {item.category}
-                  </span>
-                </td>
                 <td style={{ color: '#374151', padding: '1rem' }}>{item.name}</td>
                 <td style={{ color: '#6b7280', padding: '1rem' }}>{item.unit}</td>
-                <td style={{ padding: '1rem', borderTopRightRadius: '8px', borderBottomRightRadius: '8px' }}>
+                <td style={{ padding: '1rem' }}>
                   <span className={`badge`} style={{
                     backgroundColor: Number(item.quantity) > 0 ? '#10b981' : '#f3f4f6',
                     color: Number(item.quantity) > 0 ? 'white' : '#6b7280',
@@ -200,9 +195,14 @@ const ImplantStore = () => {
                     fontWeight: '600',
                     minWidth: '40px',
                     textAlign: 'center',
-                    boxShadow: Number(item.quantity) > 0 ? '0 2px 4px rgba(16, 185, 129, 0.3)' : 'none'
+                    display: 'inline-block'
                   }}>
                     {item.quantity}
+                  </span>
+                </td>
+                <td style={{ padding: '1rem', borderTopRightRadius: '8px', borderBottomRightRadius: '8px' }}>
+                  <span style={{ backgroundColor: '#e0e7ff', color: '#4338ca', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.875rem', fontWeight: '500', display: 'inline-block' }}>
+                    {item.category}
                   </span>
                 </td>
               </tr>
