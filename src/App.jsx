@@ -100,6 +100,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
   const [transactionType, setTransactionType] = useState(null);
   const [transactionQty, setTransactionQty] = useState(1);
   const [transactionDate, setTransactionDate] = useState('');
+  const [transactionSubSku, setTransactionSubSku] = useState('');
   const [popupError, setPopupError] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -181,16 +182,30 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
 
   const handleConfirmTransaction = async (item) => {
     if (transactionQty <= 0) return;
+    
+    const relatedImplants = implants.filter(imp => imp.category === item.name);
+    if (relatedImplants.length > 0 && !transactionSubSku) {
+      setPopupError("Vui lòng chọn Kích thước / Size!");
+      return;
+    }
+    
     const amount = transactionType === 'Nhập' ? transactionQty : -transactionQty;
     if (item.quantity + amount < 0) {
       setPopupError(`Không đủ số lượng để xuất! Hiện tại chỉ còn ${item.quantity} ${item.unit || 'sản phẩm'}.`);
       return;
     }
-    await handleUpdateQuantity(item.sku, item.quantity, amount);
+    
+    let subName = '';
+    if (transactionSubSku) {
+      subName = relatedImplants.find(imp => imp.sku === transactionSubSku)?.name || '';
+    }
+    
+    await handleUpdateQuantity(item.sku, item.quantity, amount, transactionSubSku, subName);
     setTransactionSku(null);
+    setTransactionSubSku('');
   };
 
-  const handleUpdateQuantity = async (sku, currentQty, amount) => {
+  const handleUpdateQuantity = async (sku, currentQty, amount, subSku = '', subName = '') => {
     const newQty = currentQty + amount;
     if (newQty < 0) return;
 
@@ -210,14 +225,16 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       if (transactionDate) dateStr = transactionDate;
       const timeStr = `${dateStr} ${new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().substring(11, 19)}`;
       const targetItem = items.find(i => i.sku === sku);
+      let item_name = targetItem ? targetItem.name : sku;
+      if (subName) item_name = `${item_name} (Size: ${subName})`;
 
       setTransactions(prev => [{
         "Thời gian": timeStr,
-        "Mã hàng": sku,
-        "Tên hàng": targetItem?.name || "",
         "Hành động": action,
+        "Mã hàng": sku,
+        "Tên hàng": item_name,
         "Số lượng": Math.abs(amount),
-        "Đơn vị": targetItem?.unit || "",
+        "Đơn vị": targetItem ? targetItem.unit : "",
         "Người thực hiện": person
       }, ...prev]);
     }
@@ -229,7 +246,9 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
       body: JSON.stringify({ 
         quantity: newQty, 
         changeAmount: amount,
-        date: transactionDate || null
+        date: transactionDate || null,
+        sub_sku: subSku || null,
+        sub_name: subName || null
       })
     }).then(async res => {
       if (!res.ok) {
@@ -698,6 +717,25 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
                             value={transactionDate}
                             onChange={(e) => setTransactionDate(e.target.value)}
                           />
+                          {(() => {
+                            const relatedImplants = implants.filter(imp => imp.category === item.name);
+                            if (relatedImplants.length > 0) {
+                              return (
+                                <select 
+                                  className="form-input" 
+                                  style={{ padding: '0.25rem', fontSize: '0.875rem', width: '120px' }}
+                                  value={transactionSubSku}
+                                  onChange={e => setTransactionSubSku(e.target.value)}
+                                >
+                                  <option value="">Chọn Size</option>
+                                  {relatedImplants.map(imp => (
+                                    <option key={imp.sku} value={imp.sku}>{imp.name}</option>
+                                  ))}
+                                </select>
+                              );
+                            }
+                            return null;
+                          })()}
                           <button
                             className="btn btn-primary"
                             style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#10B981', marginLeft: '4px' }}
@@ -1428,19 +1466,23 @@ const applyExcelStyle = (worksheet, data) => {
 function App() {
   const [items, setItems] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [implants, setImplants] = useState([]);
 
   const fetchAllData = async () => {
     try {
-      const [resItems, resTrans] = await Promise.all([
+      const [resItems, resTrans, resImplants] = await Promise.all([
         fetch('/api/items'),
-        fetch('/api/transactions')
+        fetch('/api/transactions'),
+        fetch('/api/implants')
       ]);
 
       const dataItems = await resItems.json();
       const dataTrans = await resTrans.json();
+      const dataImplants = await resImplants.json();
 
       if (Array.isArray(dataItems)) setItems(dataItems);
       if (Array.isArray(dataTrans)) setTransactions(dataTrans);
+      if (Array.isArray(dataImplants)) setImplants(dataImplants);
     } catch (error) {
       console.error("Lỗi khi fetch data:", error);
     }
@@ -1466,7 +1508,7 @@ function App() {
           </div>
           <Routes>
             <Route path="/" element={<Dashboard items={items} transactions={transactions} />} />
-            <Route path="/inventory" element={<Inventory items={items} setItems={setItems} fetchItems={fetchAllData} transactions={transactions} setTransactions={setTransactions} />} />
+            <Route path="/inventory" element={<Inventory items={items} setItems={setItems} fetchItems={fetchAllData} transactions={transactions} setTransactions={setTransactions} implants={implants} />} />
             <Route path="/implant" element={<ImplantStore />} />
             <Route path="/item/:sku" element={<ItemHistoryCalendar items={items} transactions={transactions} />} />
             <Route path="/transactions" element={<Transactions transactions={transactions} fetchItems={fetchAllData} />} />

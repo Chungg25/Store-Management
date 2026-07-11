@@ -273,6 +273,8 @@ class ItemUpdate(BaseModel):
     changeAmount: int 
     type: str = "quan_trong"
     date: Optional[str] = None
+    sub_sku: Optional[str] = None
+    sub_name: Optional[str] = None
 
 class ItemDetailsUpdate(BaseModel):
     name: str
@@ -367,7 +369,45 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
         person = "Đan" if action == "Nhập" else "Bình"
         amount = abs(payload.changeAmount)
         
-        background_tasks.add_task(log_transaction, trans_sheet, timestamp, sku, item_name, action, amount, unit, person)
+        # Cập nhật số lượng của size cụ thể bên sheet Implant nếu có
+        if payload.sub_sku:
+            try:
+                google_creds = os.environ.get("GOOGLE_CREDENTIALS")
+                if google_creds:
+                    gc = gspread.service_account_from_dict(json.loads(google_creds))
+                else:
+                    gc = gspread.service_account(filename=CREDENTIALS_PATH)
+                sh = gc.open_by_key(SPREADSHEET_ID)
+                try:
+                    implant_ws = sh.worksheet('Implant')
+                except:
+                    implant_ws = sh.worksheet('implant')
+                    
+                implant_idx_map = get_column_indices(implant_ws)
+                implant_col_sku = implant_idx_map.get("mã hàng") or implant_col_sku
+                implant_col_qty = implant_idx_map.get("số lượng") or implant_col_qty
+                
+                # Default indices if mapping fails for some reason
+                if not implant_col_sku: implant_col_sku = 2
+                if not implant_col_qty: implant_col_qty = 6
+                
+                implant_cell = implant_ws.find(payload.sub_sku, in_column=implant_col_sku)
+                if implant_cell:
+                    impl_row = implant_cell.row
+                    curr_val = implant_ws.cell(impl_row, implant_col_qty).value
+                    try:
+                        curr_q = int(curr_val) if curr_val else 0
+                    except:
+                        curr_q = 0
+                    implant_ws.update_cell(impl_row, implant_col_qty, curr_q + payload.changeAmount)
+            except Exception as e:
+                print("Lỗi update implant sheet:", e)
+        
+        trans_name = item_name
+        if payload.sub_name:
+            trans_name = f"{item_name} (Size: {payload.sub_name})"
+        
+        background_tasks.add_task(log_transaction, trans_sheet, timestamp, sku, trans_name, action, amount, unit, person)
         
         return {"message": "Quantity updated", "new_quantity": new_quantity}
     except HTTPException:
