@@ -183,7 +183,8 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
   const handleConfirmTransaction = async (item) => {
     if (transactionQty <= 0) return;
     
-    const relatedImplants = implants.filter(imp => imp.category === item.name);
+    const cleanItemName = (item.name || '').trim().toLowerCase();
+    const relatedImplants = implants.filter(imp => (imp.category || '').trim().toLowerCase() === cleanItemName);
     if (relatedImplants.length > 0 && !transactionSubSku) {
       setPopupError("Vui lòng chọn Kích thước / Size!");
       return;
@@ -718,7 +719,8 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions 
                             onChange={(e) => setTransactionDate(e.target.value)}
                           />
                           {(() => {
-                            const relatedImplants = implants.filter(imp => imp.category === item.name);
+                            const cleanItemName = (item.name || '').trim().toLowerCase();
+                            const relatedImplants = implants.filter(imp => (imp.category || '').trim().toLowerCase() === cleanItemName);
                             if (relatedImplants.length > 0) {
                               return (
                                 <select 
