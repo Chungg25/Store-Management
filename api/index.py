@@ -137,15 +137,18 @@ def get_transactions(type: str = "", background_tasks: BackgroundTasks = Backgro
             hcm_str = ""
             sys_str = ""
             if created_at_utc:
-                try:
-                    # Remove trailing Z if present
-                    if created_at_utc.endswith('Z'):
-                        created_at_utc = created_at_utc[:-1] + '+00:00'
-                    dt = datetime.fromisoformat(created_at_utc)
-                    dt_hcm = dt.astimezone(hcm_tz)
-                    hcm_str = dt_hcm.strftime('%Y-%m-%d')
-                except Exception:
+                # Nếu là ngày chọn (có giờ là 00:00:00) thì không đổi timezone, giữ nguyên
+                if "00:00:00" in created_at_utc:
                     hcm_str = created_at_utc[:10]
+                else:
+                    try:
+                        if created_at_utc.endswith('Z'):
+                            created_at_utc = created_at_utc[:-1] + '+00:00'
+                        dt = datetime.fromisoformat(created_at_utc)
+                        dt_hcm = dt.astimezone(hcm_tz)
+                        hcm_str = dt_hcm.strftime('%Y-%m-%d')
+                    except Exception:
+                        hcm_str = created_at_utc[:10]
             if sys_created:
                 try:
                     if sys_created.endswith('Z'):
@@ -187,7 +190,7 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
     try:
         current_now = get_local_now()
         txn_date = payload.date if payload.date else current_now[:10]
-        txn_created_at = f"{txn_date} 00:00:00+07:00"
+        txn_created_at = f"{txn_date} 00:00:00"
         
         supabase = get_supabase_client()
         import time
@@ -410,7 +413,7 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
     try:
         current_now = get_local_now()
         txn_date = payload.date if payload.date else current_now[:10]
-        txn_created_at = f"{txn_date} 00:00:00+07:00"
+        txn_created_at = f"{txn_date} 00:00:00"
 
         supabase = get_supabase_client()
         item_res = supabase.table('items').select('id, name, unit').eq('sku', sku).execute()
@@ -625,7 +628,7 @@ def delete_batch(batch_id: str):
                     "action": "Xuất",
                     "quantity": qty_to_remove,
                     "user_name": "Hệ thống (Hủy lô)",
-                    "created_at": current_now[:10] + " 00:00:00+07:00",
+                    "created_at": current_now[:10] + " 00:00:00",
                     "system_created_at": current_now
                 }
                 supabase.table('transactions').insert(trans_data).execute()
