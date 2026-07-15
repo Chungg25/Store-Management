@@ -1,3 +1,4 @@
+from pytz import timezone
 import os
 import json
 import smtplib
@@ -6,13 +7,13 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
-import gspread
 from dotenv import load_dotenv
 import tempfile
 import shutil
 from api.ai_scanner import InvoiceAI
+from supabase import create_client, Client
 
 try:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -23,9 +24,11 @@ except ImportError:
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'), override=True)
 
+
+def get_local_now():
+    return datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).isoformat()
+
 app = FastAPI()
-
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,64 +38,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID")
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+def get_supabase_client() -> Client:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise Exception("SUPABASE_URL or SUPABASE_KEY is missing")
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
 EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "example@gmail.com")
 EMAIL_RECEIVER = os.environ.get("EMAIL_RECEIVER") or EMAIL_SENDER
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD")
-CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), '../credentials.json')
 
-def get_sheets():
+def log_error(error_message):
     try:
-        google_creds = os.environ.get("GOOGLE_CREDENTIALS")
-        if google_creds:
-            creds_dict = json.loads(google_creds)
-            gc = gspread.service_account_from_dict(creds_dict)
-        else:
-            gc = gspread.service_account(filename=CREDENTIALS_PATH)
-        sh = gc.open_by_key(SPREADSHEET_ID)
-        
-        items_sheet = None
-        transactions_sheet = None
-        data_sheet = None
-        error_sheet = None
-        for sheet in sh.worksheets():
-            if sheet.title.lower() == "inventory":
-                items_sheet = sheet
-            elif sheet.title == "LichSu":
-                transactions_sheet = sheet
-            elif sheet.title.lower() == "data":
-                data_sheet = sheet
-            elif sheet.title == "ErrorLogs":
-                error_sheet = sheet
-                
-        if not items_sheet:
-            items_sheet = sh.add_worksheet(title="Inventory", rows="1000", cols="20")
-            items_sheet.append_row(["Mã hàng", "Tên hàng", "ĐVT", "Số lượng", "Hạn mức", "Phân loại"])
-            
-        if not transactions_sheet:
-            transactions_sheet = sh.add_worksheet(title="LichSu", rows="1000", cols="6")
-            transactions_sheet.append_row(["Thời gian", "Mã hàng", "Tên hàng", "Hành động", "Số lượng", "Đơn vị", "Người thực hiện"])
-            
-        if not data_sheet:
-            data_sheet = sh.get_worksheet(0)
-            
-        if not error_sheet:
-            error_sheet = sh.add_worksheet(title="ErrorLogs", rows="1000", cols="2")
-            error_sheet.append_row(["Thời gian", "Chi tiết lỗi"])
-            
-        return items_sheet, transactions_sheet, data_sheet, error_sheet
-    except Exception as e:
-        print(f"Error connecting to Google Sheets: {e}")
-        return None, None, None, None
-
-def log_error(error_sheet, error_message):
-    if error_sheet:
-        try:
-            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
-            timestamp = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            error_sheet.append_row([timestamp, str(error_message)])
-        except Exception:
-            pass
+        print(f"ERROR: {error_message}")
+    except Exception:
+        pass
 
 @app.get("/api/health")
 def health_check():
@@ -101,171 +63,305 @@ def health_check():
 @app.get("/api/items")
 def get_items(type: str = "", background_tasks: BackgroundTasks = BackgroundTasks()):
     try:
-        items_sheet, _, data_sheet, error_sheet = get_sheets()
-        if not items_sheet:
-            raise Exception("Cannot connect to Google Sheets")
-            
-        important_skus = set()
-        if data_sheet:
-            for r in data_sheet.get_all_records():
-                s = r.get("Mã hàng")
-                if s: important_skus.add(str(s).strip().lower())
+        from datetime import datetime
+        supabase = get_supabase_client()
+        items_res = supabase.table('items').select('*').execute()
         
-        records = items_sheet.get_all_records()
-        items = []
-        for row in records:
-            sku = row.get("Mã hàng")
-            if not sku: continue
-            try: qty = int(row.get("Số lượng", 0) or 0)
-            except ValueError: qty = 0
-            try: threshold = int(row.get("Hạn mức", 0) or 0)
-            except ValueError: threshold = 0
+        batches_res = supabase.table('inventory_batches').select('item_id, expiration_date').gt('remaining_quantity', 0).execute()
+        
+        today = datetime.now().date()
+        expiring_map = {}
+        for b in batches_res.data:
+            item_id = b['item_id']
+            exp_date_str = b.get('expiration_date')
+            if exp_date_str:
+                if item_id not in expiring_map:
+                    expiring_map[item_id] = []
+                expiring_map[item_id].append(exp_date_str)
+                
+        result = []
+        for item in items_res.data:
+            item_id = item.get("id")
+            warning_days = item.get("exp_warning_days") or 0
             
-            items.append({
-                "id": row.get("STT") or "",
-                "sku": sku,
-                "name": row.get("Tên hàng"),
-                "unit": row.get("ĐVT") or row.get("Đơn vị tính") or row.get("Đơn vị", ""),
-                "quantity": qty,
-                "conversion": row.get("Quy đổi", ""),
-                "minThreshold": threshold,
-                "group": row.get("Nhóm", "") or row.get("Phân loại", ""),
-                "isImportant": str(sku).strip().lower() in important_skus
+            is_expiring = False
+            closest_exp = None
+            if item_id in expiring_map and warning_days > 0:
+                dates = []
+                for ds in expiring_map[item_id]:
+                    try:
+                        dates.append(datetime.strptime(ds, "%Y-%m-%d").date())
+                    except:
+                        pass
+                if dates:
+                    closest_date = min(dates)
+                    closest_exp = closest_date.strftime("%Y-%m-%d")
+                    if (closest_date - today).days <= warning_days:
+                        is_expiring = True
+
+            result.append({
+                "id": item_id,
+                "sku": item.get("sku"),
+                "name": item.get("name"),
+                "unit": item.get("unit"),
+                "quantity": item.get("quantity", 0),
+                "conversion": "",
+                "minThreshold": item.get("min_quantity", 0),
+                "expWarningDays": warning_days,
+                "group": item.get("category", ""),
+                "isImportant": item.get("is_important", False),
+                "isExpiring": is_expiring,
+                "closestExpirationDate": closest_exp
             })
-        return items
+        return result
     except Exception as e:
-        items_sheet, _, _, error_sheet = get_sheets()
-        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"get_items error: {str(e)}")
+        background_tasks.add_task(log_error, f"get_items error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/transactions")
 def get_transactions(type: str = "", background_tasks: BackgroundTasks = BackgroundTasks()):
     try:
-        _, trans_sheet, _, error_sheet = get_sheets()
-        if not trans_sheet:
-            raise Exception("Cannot connect to Google Sheets")
-        records = trans_sheet.get_all_records()
-        return records
+        supabase = get_supabase_client()
+        trans_res = supabase.table('transactions').select('*, items(sku, name, unit)').order('created_at', desc=True).execute()
+        
+        result = []
+        for t in trans_res.data:
+            item_data = t.get('items', {})
+            created_at_utc = t.get("created_at")
+            hcm_str = ""
+            if created_at_utc:
+                # Just strip timezone and format
+                hcm_str = created_at_utc[:19].replace('T', ' ')
+            result.append({
+                "Thời gian": hcm_str,
+                "Mã hàng": item_data.get("sku", ""),
+                "Tên hàng": item_data.get("name", ""),
+                "Hành động": "Nhập" if t.get("action") == "IMPORT" else "Xuất",
+                "Số lượng": t.get("quantity"),
+                "Đơn vị": item_data.get("unit", ""),
+                "Người thực hiện": t.get("user_name", "")
+            })
+        return result
     except Exception as e:
-        _, _, _, error_sheet = get_sheets()
-        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"get_transactions error: {str(e)}")
+        background_tasks.add_task(log_error, f"get_transactions error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 class ItemCreate(BaseModel):
     name: str
     unit: str
     quantity: int
-    conversion: str
-    minThreshold: int
-    group: str
+    conversion: str = ""
+    minThreshold: int = 0
+    group: str = ""
     date: str = None
+    importPrice: float = None
+    expirationDate: str = None
+    expWarningDays: int = 30
 
 @app.post("/api/items")
 def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = BackgroundTasks()):
     try:
-        items_sheet, trans_sheet, _, error_sheet = get_sheets()
-        if not items_sheet or not trans_sheet:
-            raise Exception("Cannot connect to Google Sheets")
-            
-        records = items_sheet.get_all_records()
-        headers = items_sheet.row_values(1)
+        supabase = get_supabase_client()
+        import time
+        new_sku = f"SP{int(time.time() * 1000)}"
         
-        max_stt = 0
-        max_sku_num = 0
-        
-        for row in records:
-            # Parse STT
-            try:
-                stt_val = int(row.get("STT", 0) or 0)
-                if stt_val > max_stt: max_stt = stt_val
-            except Exception:
-                pass
-            
-            # Parse SKU (Mã hàng) assuming format like SP001
-            sku_val = str(row.get("Mã hàng", "")).strip().upper()
-            if sku_val.startswith("SP"):
-                try:
-                    num_val = int(sku_val.replace("SP", ""))
-                    if num_val > max_sku_num: max_sku_num = num_val
-                except Exception:
-                    pass
-        
-        new_stt = max_stt + 1
-        new_sku = f"SP{max_sku_num + 1:03d}"
-        
-        # Build row array based on headers
-        new_row = [""] * len(headers)
-        for i, h in enumerate(headers):
-            h_lower = h.strip().lower()
-            if h_lower == "stt": new_row[i] = new_stt
-            elif h_lower == "mã hàng": new_row[i] = new_sku
-            elif h_lower == "tên hàng": new_row[i] = payload.name
-            elif h_lower in ["đvt", "đơn vị tính", "đơn vị"]: new_row[i] = payload.unit
-            elif h_lower == "số lượng": new_row[i] = payload.quantity
-            elif h_lower == "quy đổi": new_row[i] = payload.conversion
-            elif h_lower == "hạn mức": new_row[i] = payload.minThreshold
-            elif h_lower in ["nhóm", "phân loại"]: new_row[i] = payload.group
-        
-        # If headers are missing some columns, we should append them but for now assume they exist
-        items_sheet.append_row(new_row)
+        item_data = {
+            "sku": new_sku,
+            "name": payload.name,
+            "unit": payload.unit,
+            "category": payload.group,
+            "min_quantity": payload.minThreshold,
+            "exp_warning_days": payload.expWarningDays
+        }
+        item_res = supabase.table('items').insert(item_data).execute()
+        item_id = item_res.data[0]['id']
         
         if payload.quantity > 0:
-            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
-            now_time = datetime.now(vn_tz) if vn_tz else datetime.now()
-            if payload.date:
-                timestamp = f"{payload.date} {now_time.strftime('%H:%M:%S')}"
-            else:
-                timestamp = now_time.strftime("%Y-%m-%d %H:%M:%S")
-            background_tasks.add_task(log_transaction, trans_sheet, timestamp, new_sku, payload.name, "Nhập", payload.quantity, payload.unit, "Đan")
+            batch_data = {
+                "item_id": item_id,
+                "original_quantity": payload.quantity,
+                "remaining_quantity": payload.quantity,
+                "import_price": payload.importPrice,
+                "expiration_date": payload.expirationDate if payload.expirationDate else None,
+                "created_at": get_local_now()
+            }
+            batch_res = supabase.table('inventory_batches').insert(batch_data).execute()
+            batch_id = batch_res.data[0]['id']
+            
+            trans_data = {
+                "item_id": item_id,
+                "batch_id": batch_id,
+                "action": "IMPORT",
+                "quantity": payload.quantity,
+                "user_name": "Đan",
+                "created_at": get_local_now()
+            }
+            supabase.table('transactions').insert(trans_data).execute()
             
         return {"message": "Tạo thành công", "sku": new_sku}
     except Exception as e:
-        _, _, _, error_sheet = get_sheets()
-        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"create_item error: {str(e)}")
+        background_tasks.add_task(log_error, f"create_item error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/api/implants")
 def get_implants():
     try:
-        google_creds = os.environ.get("GOOGLE_CREDENTIALS")
-        if google_creds:
-            creds_dict = json.loads(google_creds)
-            gc = gspread.service_account_from_dict(creds_dict)
-        else:
-            gc = gspread.service_account(filename=CREDENTIALS_PATH)
-        sh = gc.open_by_key(SPREADSHEET_ID)
-        try:
-            ws = sh.worksheet('Implant')
-        except:
-            ws = sh.worksheet('implant')
-        records = ws.get_all_records()
-        implants = []
-        current_category = "Khác"
-        for row in records:
-            clean_row = {}
-            for k, v in row.items():
-                k_clean = str(k).strip()
-                if 'M' in k_clean: clean_row['sku'] = v
-                elif 'H' in k_clean: clean_row['name'] = v
-                elif 'V' in k_clean: clean_row['unit'] = v
-                elif 'S' in k_clean and 'l' in k_clean: clean_row['quantity'] = v
-                elif 'STT' in k_clean: clean_row['id'] = v
-            
-            sku_val = str(clean_row.get('sku', '')).strip()
-            name_val = str(clean_row.get('name', '')).strip()
-            
-            if not sku_val and name_val:
-                current_category = name_val
-            elif sku_val:
-                clean_row['category'] = current_category
-                implants.append(clean_row)
-        return implants
+        supabase = get_supabase_client()
+        res = supabase.table('implants').select('*').execute()
+        return res.data
     except Exception as e:
-        import traceback
-        with open('error_log.txt', 'a', encoding='utf-8') as f:
-            f.write(traceback.format_exc() + "\n")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ItemDetailsUpdate(BaseModel):
+    name: str
+    unit: str
+    minThreshold: int
+    expWarningDays: int = 30
+    type: str = "quan_trong"
+
+@app.put("/api/items/{sku}/details")
+def update_item_details(sku: str, payload: ItemDetailsUpdate, background_tasks: BackgroundTasks = BackgroundTasks()):
+    try:
+        supabase = get_supabase_client()
+        item_res = supabase.table('items').select('id').eq('sku', sku).execute()
+        if not item_res.data:
+            raise HTTPException(status_code=404, detail="Item not found")
+            
+        item_id = item_res.data[0]['id']
+        update_data = {
+            "name": payload.name,
+            "unit": payload.unit,
+            "min_quantity": payload.minThreshold,
+            "exp_warning_days": payload.expWarningDays
+        }
+        supabase.table('items').update(update_data).eq('id', item_id).execute()
+        
+        return {"message": "Cập nhật thông tin thành công"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        background_tasks.add_task(log_error, f"update_item_details error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/items/{sku}/batches")
+def get_item_batches(sku: str, background_tasks: BackgroundTasks = BackgroundTasks()):
+    try:
+        supabase = get_supabase_client()
+        # Find item id first
+        item_res = supabase.table('items').select('id, name').eq('sku', sku).execute()
+        if not item_res.data:
+            raise HTTPException(status_code=404, detail="Item not found")
+            
+        item_id = item_res.data[0]['id']
+        
+        # Get active batches
+        batches_res = supabase.table('inventory_batches').select('*').eq('item_id', item_id).gt('remaining_quantity', 0).order('expiration_date', nullsfirst=False).order('created_at').execute()
+        
+        batches_data = []
+        for b in batches_res.data:
+            b_copy = dict(b)
+            if b_copy.get('created_at'):
+                b_copy['created_at'] = b_copy['created_at'][:19].replace('T', ' ')
+            batches_data.append(b_copy)
+            
+        return {
+            "sku": sku,
+            "name": item_res.data[0]['name'],
+            "batches": batches_data
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        background_tasks.add_task(log_error, f"get_item_batches error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/expiring-batches")
+def get_expiring_batches():
+    try:
+        supabase = get_supabase_client()
+        items_res = supabase.table('items').select('*').execute()
+        items_dict = {item['id']: item for item in items_res.data}
+        
+        batches_res = supabase.table('inventory_batches').select('*').gt('remaining_quantity', 0).execute()
+        
+        today = datetime.now().date()
+        expiring = []
+        for b in batches_res.data:
+            item_id = b['item_id']
+            item = items_dict.get(item_id)
+            if not item:
+                continue
+            
+            exp_date_str = b.get('expiration_date')
+            if exp_date_str:
+                try:
+                    exp_date = datetime.strptime(exp_date_str, '%Y-%m-%d').date()
+                    warning_days = item.get("exp_warning_days", 30)
+                    diff_days = (exp_date - today).days
+                    if diff_days <= warning_days:
+                        b_info = dict(b)
+                        b_info['item_sku'] = item['sku']
+                        b_info['item_name'] = item['name']
+                        b_info['diff_days'] = diff_days
+                        expiring.append(b_info)
+                except:
+                    pass
+                    
+        return expiring
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/export-expiring-batches")
+def export_expiring_batches(background_tasks: BackgroundTasks = BackgroundTasks()):
+    try:
+        supabase = get_supabase_client()
+        items_res = supabase.table('items').select('*').execute()
+        items_dict = {item['id']: item for item in items_res.data}
+        
+        batches_res = supabase.table('inventory_batches').select('*').gt('remaining_quantity', 0).execute()
+        
+        today = datetime.now().date()
+        exported_count = 0
+        for b in batches_res.data:
+            item_id = b['item_id']
+            item = items_dict.get(item_id)
+            if not item:
+                continue
+            
+            exp_date_str = b.get('expiration_date')
+            if exp_date_str:
+                try:
+                    exp_date = datetime.strptime(exp_date_str, '%Y-%m-%d').date()
+                    warning_days = item.get("exp_warning_days", 30)
+                    if (exp_date - today).days <= warning_days:
+                        qty = b['remaining_quantity']
+                        # Update batch to 0
+                        supabase.table('inventory_batches').update({"remaining_quantity": 0}).eq('id', b['id']).execute()
+                        
+                        # Log transaction
+                        trans_data = {
+                            "item_id": item_id,
+                            "batch_id": b['id'],
+                            "action": "EXPORT",
+                            "quantity": qty,
+                            "user_name": "Hệ thống (Hủy cận hạn)",
+                            "created_at": get_local_now()
+                        }
+                        supabase.table('transactions').insert(trans_data).execute()
+                        
+                        # Update item quantity
+                        new_qty = max(0, item['quantity'] - qty)
+                        supabase.table('items').update({'quantity': new_qty}).eq('id', item_id).execute()
+                        item['quantity'] = new_qty
+                        exported_count += 1
+                except:
+                    pass
+                    
+        return {"message": f"Đã hủy thành công {exported_count} lô hàng."}
+    except Exception as e:
+        background_tasks.add_task(log_error, f"export_expiring_batches error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 class ItemUpdate(BaseModel):
@@ -273,151 +369,100 @@ class ItemUpdate(BaseModel):
     changeAmount: int 
     type: str = "quan_trong"
     date: Optional[str] = None
+    importPrice: Optional[float] = None
+    expirationDate: Optional[str] = None
     sub_sku: Optional[str] = None
     sub_name: Optional[str] = None
-
-class ItemDetailsUpdate(BaseModel):
-    name: str
-    unit: str
-    minThreshold: int
-    type: str = "quan_trong"
-
-@app.put("/api/items/{sku}/details")
-def update_item_details(sku: str, payload: ItemDetailsUpdate, background_tasks: BackgroundTasks = BackgroundTasks()):
-    try:
-        items_sheet, _, _, error_sheet = get_sheets()
-        if not items_sheet:
-            raise Exception("Cannot connect to Google Sheets")
-        
-        idx_map = get_column_indices(items_sheet)
-        col_sku = idx_map.get("mã hàng")
-        if not col_sku:
-            raise Exception("Sheet missing 'Mã hàng' column")
-            
-        cell = items_sheet.find(sku, in_column=col_sku)
-        if not cell:
-            raise HTTPException(status_code=404, detail="Item not found")
-            
-        row_idx = cell.row
-        col_name = idx_map.get("tên hàng")
-        col_unit = idx_map.get("đvt") or idx_map.get("đơn vị tính") or idx_map.get("đơn vị")
-        col_thresh = idx_map.get("hạn mức")
-        
-        if col_name: items_sheet.update_cell(row_idx, col_name, payload.name)
-        if col_unit: items_sheet.update_cell(row_idx, col_unit, payload.unit)
-        if col_thresh: items_sheet.update_cell(row_idx, col_thresh, payload.minThreshold)
-        
-        return {"message": "Cập nhật thông tin thành công"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        _, _, _, error_sheet = get_sheets()
-        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"update_item_details error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-def get_column_indices(sheet):
-    header = sheet.row_values(1)
-    idx_map = {}
-    for i, h in enumerate(header):
-        idx_map[h.strip().lower()] = i + 1
-    return idx_map
-
-def log_transaction(trans_sheet, timestamp, sku, item_name, action, amount, unit, person):
-    try:
-        trans_sheet.append_row([timestamp, sku, item_name, action, amount, unit, person])
-    except Exception as e:
-        print(f"Error writing transaction: {e}")
+    expWarningDays: Optional[int] = None
 
 @app.put("/api/items/{sku}")
 def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: BackgroundTasks):
     try:
-        items_sheet, trans_sheet, _, error_sheet = get_sheets()
-        if not items_sheet or not trans_sheet:
-            raise Exception("Cannot connect to Google Sheets")
-        
-        idx_map = get_column_indices(items_sheet)
-        col_sku = idx_map.get("mã hàng")
-        if not col_sku:
-            raise Exception("Sheet is missing 'Mã hàng' column")
-            
-        cell = items_sheet.find(sku, in_column=col_sku)
-        if not cell:
+        supabase = get_supabase_client()
+        item_res = supabase.table('items').select('id, name, unit').eq('sku', sku).execute()
+        if not item_res.data:
             raise HTTPException(status_code=404, detail="Item not found")
+        item = item_res.data[0]
+        item_id = item['id']
+        
+        if payload.changeAmount > 0: # IMPORT
+            batch_data = {
+                "item_id": item_id,
+                "original_quantity": payload.changeAmount,
+                "remaining_quantity": payload.changeAmount,
+                "import_price": payload.importPrice,
+                "expiration_date": payload.expirationDate if payload.expirationDate else None,
+                "created_at": get_local_now()
+            }
+            batch_res = supabase.table('inventory_batches').insert(batch_data).execute()
+            batch_id = batch_res.data[0]['id']
             
-        row_idx = cell.row
-        col_qty = idx_map.get("số lượng")
-        if not col_qty:
-            raise Exception("Sheet is missing 'Số lượng' column")
+            trans_data = {
+                "item_id": item_id,
+                "batch_id": batch_id,
+                "action": "IMPORT",
+                "quantity": payload.changeAmount,
+                "user_name": "Đan",
+                "created_at": get_local_now()
+            }
+            supabase.table('transactions').insert(trans_data).execute()
+        
+        elif payload.changeAmount < 0: # EXPORT
+            export_qty = abs(payload.changeAmount)
             
-        col_name = idx_map.get("tên hàng")
-        col_unit = idx_map.get("đvt") or idx_map.get("đơn vị tính") or idx_map.get("đơn vị")
-        
-        row_data = items_sheet.row_values(row_idx)
-        item_name = row_data[col_name - 1] if col_name and len(row_data) >= col_name else ""
-        unit = row_data[col_unit - 1] if col_unit and len(row_data) >= col_unit else ""
-        
-        new_quantity = payload.quantity
-        items_sheet.update_cell(row_idx, col_qty, new_quantity)
-        
-        vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
-        now_time = datetime.now(vn_tz) if vn_tz else datetime.now()
-        if payload.date:
-            timestamp = f"{payload.date} {now_time.strftime('%H:%M:%S')}"
-        else:
-            timestamp = now_time.strftime("%Y-%m-%d %H:%M:%S")
-        action = "Nhập" if payload.changeAmount > 0 else "Xuất"
-        person = "Đan" if action == "Nhập" else "Bình"
-        amount = abs(payload.changeAmount)
-        
-        # Cập nhật số lượng của size cụ thể bên sheet Implant nếu có
+            batches_res = supabase.table('inventory_batches').select('*').eq('item_id', item_id).gt('remaining_quantity', 0).order('expiration_date', nullsfirst=False).order('created_at').execute()
+            
+            total_available = sum(b['remaining_quantity'] for b in batches_res.data)
+            if total_available < export_qty:
+                raise HTTPException(status_code=400, detail="Không đủ số lượng trong kho")
+                
+            qty_to_export = export_qty
+            for b in batches_res.data:
+                if qty_to_export <= 0:
+                    break
+                    
+                deduct = min(b['remaining_quantity'], qty_to_export)
+                new_rem = b['remaining_quantity'] - deduct
+                supabase.table('inventory_batches').update({"remaining_quantity": new_rem}).eq('id', b['id']).execute()
+                
+                trans_data = {
+                    "item_id": item_id,
+                    "batch_id": b['id'],
+                    "action": "EXPORT",
+                    "quantity": deduct,
+                    "user_name": "Bình",
+                    "created_at": get_local_now()
+                }
+                supabase.table('transactions').insert(trans_data).execute()
+                qty_to_export -= deduct
+                
+        # Cập nhật số lượng của size cụ thể bên bảng implants nếu có
         if payload.sub_sku:
             try:
-                google_creds = os.environ.get("GOOGLE_CREDENTIALS")
-                if google_creds:
-                    gc = gspread.service_account_from_dict(json.loads(google_creds))
-                else:
-                    gc = gspread.service_account(filename=CREDENTIALS_PATH)
-                sh = gc.open_by_key(SPREADSHEET_ID)
-                try:
-                    implant_ws = sh.worksheet('Implant')
-                except:
-                    implant_ws = sh.worksheet('implant')
-                    
-                implant_idx_map = get_column_indices(implant_ws)
-                implant_col_sku = implant_idx_map.get("mã hàng")
-                implant_col_qty = implant_idx_map.get("số lượng")
-                
-                # Default indices if mapping fails for some reason
-                if not implant_col_sku: implant_col_sku = 2
-                if not implant_col_qty: implant_col_qty = 6
-                
-                implant_cell = implant_ws.find(payload.sub_sku, in_column=implant_col_sku)
-                if implant_cell:
-                    impl_row = implant_cell.row
-                    curr_val = implant_ws.cell(impl_row, implant_col_qty).value
-                    try:
-                        curr_q = int(curr_val) if curr_val else 0
-                    except:
-                        curr_q = 0
-                    implant_ws.update_cell(impl_row, implant_col_qty, curr_q + payload.changeAmount)
+                implant_res = supabase.table('implants').select('id, quantity').eq('sku', payload.sub_sku).execute()
+                if implant_res.data:
+                    impl_id = implant_res.data[0]['id']
+                    curr_q = implant_res.data[0]['quantity']
+                    supabase.table('implants').update({'quantity': curr_q + payload.changeAmount}).eq('id', impl_id).execute()
             except Exception as e:
-                print("Lỗi update implant sheet:", e)
-        
-        trans_name = item_name
-        if payload.sub_name:
-            trans_name = f"{item_name} (Size: {payload.sub_name})"
-        
-        background_tasks.add_task(log_transaction, trans_sheet, timestamp, sku, trans_name, action, amount, unit, person)
-        
-        return {"message": "Quantity updated", "new_quantity": new_quantity}
+                background_tasks.add_task(log_error, f"Error update implant size: {str(e)}")
+
+        # Cập nhật tổng số lượng tồn kho caching ở bảng items
+        try:
+            update_payload = {'quantity': payload.quantity}
+            if payload.expWarningDays is not None:
+                update_payload['exp_warning_days'] = payload.expWarningDays
+            supabase.table('items').update(update_payload).eq('id', item_id).execute()
+        except Exception as e:
+            background_tasks.add_task(log_error, f"Error update cached quantity: {str(e)}")
+            
+        return {"message": "Quantity updated", "new_quantity": payload.quantity}
     except HTTPException:
         raise
     except Exception as e:
-        _, _, _, error_sheet = get_sheets()
-        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"update_item_quantity error: {str(e)}")
+        background_tasks.add_task(log_error, f"update_item_quantity error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Initialize AI Engine Globally (to prevent loading repeatedly)
 ai_engine = None
 
 @app.post("/api/ocr")
@@ -429,7 +474,6 @@ async def process_ocr(file: UploadFile = File(...)):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Cannot initialize AI: {str(e)}")
 
-    # Save uploaded file to temp file
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
             shutil.copyfileobj(file.file, tmp)
@@ -437,80 +481,121 @@ async def process_ocr(file: UploadFile = File(...)):
     finally:
         file.file.close()
 
-    # Process image with AI
     try:
         json_result = ai_engine.process_image(tmp_path)
         return {"success": True, "raw": ["AI Extracted JSON directly"], "data": json.loads(json_result)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # Clean up temp file
         if os.path.exists(tmp_path):
             try:
                 os.remove(tmp_path)
             except Exception:
                 pass
 
-
-
 @app.post("/api/save-ocr")
 async def save_ocr(data: str = Form(...), background_tasks: BackgroundTasks = BackgroundTasks()):
     try:
         parsed_data = json.loads(data)
-        items_sheet, trans_sheet, _, error_sheet = get_sheets()
-        if items_sheet and trans_sheet:
-            idx_map = get_column_indices(items_sheet)
-            col_qty = idx_map.get("số lượng")
-            if not col_qty:
-                raise Exception("Sheet missing 'Số lượng' column")
-            
-            records = items_sheet.get_all_records()
-            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh') if SCHEDULER_AVAILABLE else None
-            time_str = datetime.now(vn_tz).strftime("%Y-%m-%d %H:%M:%S") if vn_tz else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            for item in parsed_data:
-                name = item.get("tên mặt hàng", "").strip()
-                unit = item.get("đơn vị tính", "").strip()
-                try: qty = int(item.get("số lượng", 0))
-                except ValueError: qty = 0
-                
-                if not name or qty <= 0: continue
-                
-                found_idx = -1
-                current_qty = 0
-                sku = ""
-                for i, row in enumerate(records):
-                    row_name = str(row.get("Tên hàng", "")).strip()
-                    row_unit = str(row.get("ĐVT", "")).strip()
-                    alt_unit = str(row.get("Đơn vị tính", "")).strip()
-                    if row_name.lower() == name.lower() and (row_unit.lower() == unit.lower() or alt_unit.lower() == unit.lower()):
-                        found_idx = i + 2 
-                        sku = str(row.get("Mã hàng", ""))
-                        try: current_qty = int(row.get("Số lượng", 0) or 0)
-                        except ValueError: current_qty = 0
-                        break
-                
-                if found_idx != -1:
-                    new_qty = current_qty + qty
-                    items_sheet.update_cell(found_idx, col_qty, new_qty)
-                    background_tasks.add_task(log_transaction, trans_sheet, time_str, sku, name, "Nhập", qty, unit, "Đan")
-                elif item.get("isNewItem"):
-                    import time
-                    new_sku = f"SP{int(time.time() * 1000)}"
-                    try:
-                        items_sheet.append_row([new_sku, name, unit, qty, 0, ""])
-                        background_tasks.add_task(log_transaction, trans_sheet, time_str, new_sku, name, "Nhập", qty, unit, "Đan")
-                        records.append({
-                            "Tên hàng": name,
-                            "ĐVT": unit,
-                            "Mã hàng": new_sku,
-                            "Số lượng": qty
-                        })
-                    except Exception as e:
-                        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"OCR Append new item error: {str(e)}")
+        supabase = get_supabase_client()
         
+        for item in parsed_data:
+            name = item.get("tên mặt hàng", "").strip()
+            unit = item.get("đơn vị tính", "").strip()
+            try: qty = int(item.get("số lượng", 0))
+            except ValueError: qty = 0
+            
+            if not name or qty <= 0: continue
+            
+            item_res = supabase.table('items').select('id, sku').ilike('name', name).execute()
+            if item_res.data:
+                item_id = item_res.data[0]['id']
+                batch_data = {
+                    "item_id": item_id,
+                    "original_quantity": qty,
+                    "remaining_quantity": qty,
+                "created_at": get_local_now()
+            }
+                batch_res = supabase.table('inventory_batches').insert(batch_data).execute()
+                
+                trans_data = {
+                    "item_id": item_id,
+                    "batch_id": batch_res.data[0]['id'],
+                    "action": "IMPORT",
+                    "quantity": qty,
+                    "user_name": "Đan",
+                "created_at": get_local_now()
+            }
+                supabase.table('transactions').insert(trans_data).execute()
+            elif item.get("isNewItem"):
+                import time
+                new_sku = f"SP{int(time.time() * 1000)}"
+                new_item = {
+                    "sku": new_sku,
+                    "name": name,
+                    "unit": unit
+                }
+                res = supabase.table('items').insert(new_item).execute()
+                item_id = res.data[0]['id']
+                
+                batch_data = {
+                    "item_id": item_id,
+                    "original_quantity": qty,
+                    "remaining_quantity": qty,
+                "created_at": get_local_now()
+            }
+                batch_res = supabase.table('inventory_batches').insert(batch_data).execute()
+                
+                trans_data = {
+                    "item_id": item_id,
+                    "batch_id": batch_res.data[0]['id'],
+                    "action": "IMPORT",
+                    "quantity": qty,
+                    "user_name": "Đan",
+                "created_at": get_local_now()
+            }
+                supabase.table('transactions').insert(trans_data).execute()
+
         return {"message": "Dữ liệu OCR đã được cập nhật thành công!"}
     except Exception as e:
-        _, _, _, error_sheet = get_sheets()
-        if error_sheet: background_tasks.add_task(log_error, error_sheet, f"OCR Save Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+@app.delete("/api/batches/{batch_id}")
+def delete_batch(batch_id: int):
+    try:
+        supabase = get_supabase_client()
+        
+        # 1. Fetch batch
+        batch_res = supabase.table('inventory_batches').select('*').eq('id', batch_id).execute()
+        if not batch_res.data:
+            raise HTTPException(status_code=404, detail="Batch not found")
+            
+        batch = batch_res.data[0]
+        qty_to_remove = batch.get('remaining_quantity', 0)
+        item_id = batch['item_id']
+        
+        # 2. Update item quantity and record transaction if qty > 0
+        if qty_to_remove > 0:
+            item_res = supabase.table('items').select('*').eq('id', item_id).execute()
+            if item_res.data:
+                item = item_res.data[0]
+                new_qty = max(0, item.get('quantity', 0) - qty_to_remove)
+                supabase.table('items').update({'quantity': new_qty}).eq('id', item_id).execute()
+                
+                # Transaction Log
+                trans_data = {
+                    "item_id": item_id,
+                    "action": "Xuất",
+                    "quantity": qty_to_remove,
+                    "user_name": "Hệ thống (Hủy lô)",
+                    "created_at": get_local_now()
+                }
+                supabase.table('transactions').insert(trans_data).execute()
+                
+        # 3. Delete the batch
+        supabase.table('inventory_batches').delete().eq('id', batch_id).execute()
+        
+        return {"success": True, "message": "Batch deleted successfully"}
+        
+    except Exception as e:
+        print(f"Error deleting batch: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -80,7 +80,6 @@ const ImplantStore = () => {
 
   const handleExport = () => {
     const data = filteredItems.map(item => ({
-      'STT': item.id || '',
       'Mã hàng': item.sku || '',
       'Hãng / Loại': item.category || '',
       'Tên hàng / Kích thước': item.name || '',
@@ -171,8 +170,7 @@ const ImplantStore = () => {
         <table style={{ borderCollapse: 'separate', borderSpacing: '0 0.5rem' }}>
           <thead>
             <tr style={{ backgroundColor: '#f3f4f6' }}>
-              <th onClick={() => requestSort('id')} style={{ cursor: 'pointer', userSelect: 'none', borderRadius: '8px 0 0 8px', padding: '1rem' }}>STT{getSortIndicator('id')}</th>
-              <th onClick={() => requestSort('name')} style={{ cursor: 'pointer', userSelect: 'none', padding: '1rem' }}>Kích thước / Tên chi tiết{getSortIndicator('name')}</th>
+              <th onClick={() => requestSort('name')} style={{ cursor: 'pointer', userSelect: 'none', borderRadius: '8px 0 0 8px', padding: '1rem' }}>Kích thước / Tên chi tiết{getSortIndicator('name')}</th>
               <th style={{ padding: '1rem' }}>ĐVT</th>
               <th onClick={() => requestSort('quantity')} style={{ cursor: 'pointer', userSelect: 'none', padding: '1rem' }}>Tồn kho{getSortIndicator('quantity')}</th>
               <th onClick={() => requestSort('sku')} style={{ cursor: 'pointer', userSelect: 'none', padding: '1rem' }}>Mã hàng{getSortIndicator('sku')}</th>
@@ -182,8 +180,7 @@ const ImplantStore = () => {
           <tbody>
             {filteredItems.map((item, idx) => (
               <tr key={item.sku || idx} style={{ backgroundColor: 'white', transition: 'all 0.2s ease', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)' }} className="table-row-hover">
-                <td style={{ color: '#6b7280', fontSize: '0.875rem', padding: '1rem', borderTopLeftRadius: '8px', borderBottomLeftRadius: '8px' }}>{item.id}</td>
-                <td style={{ color: '#374151', padding: '1rem' }}>{item.name}</td>
+                <td style={{ color: '#374151', padding: '1rem', borderTopLeftRadius: '8px', borderBottomLeftRadius: '8px' }}>{item.name}</td>
                 <td style={{ color: '#6b7280', padding: '1rem' }}>{item.unit}</td>
                 <td style={{ padding: '1rem' }}>
                   <span className={`badge`} style={{
@@ -209,7 +206,7 @@ const ImplantStore = () => {
             ))}
             {filteredItems.length === 0 && (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: '#6b7280', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+                <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: '#6b7280', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     <span>Không tìm thấy dữ liệu nào phù hợp!</span>
