@@ -383,6 +383,10 @@ class ItemUpdate(BaseModel):
 @app.put("/api/items/{sku}")
 def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: BackgroundTasks):
     try:
+        current_now = get_local_now()
+        txn_date = payload.date if payload.date else current_now[:10]
+        txn_created_at = f"{txn_date} 00:00:00+07:00"
+
         supabase = get_supabase_client()
         item_res = supabase.table('items').select('id, name, unit').eq('sku', sku).execute()
         if not item_res.data:
@@ -397,7 +401,8 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
                 "remaining_quantity": payload.changeAmount,
                 "import_price": payload.importPrice,
                 "expiration_date": payload.expirationDate if payload.expirationDate else None,
-                "created_at": get_local_now()
+                "created_at": txn_created_at,
+                "system_created_at": current_now
             }
             batch_res = supabase.table('inventory_batches').insert(batch_data).execute()
             batch_id = batch_res.data[0]['id']
@@ -408,7 +413,8 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
                 "action": "IMPORT",
                 "quantity": payload.changeAmount,
                 "user_name": "Đan",
-                "created_at": get_local_now()
+                "created_at": txn_created_at,
+                "system_created_at": current_now
             }
             supabase.table('transactions').insert(trans_data).execute()
         
