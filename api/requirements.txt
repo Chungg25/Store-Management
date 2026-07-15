@@ -6,4 +6,5 @@ pydantic
 python-dotenv
 python-multipart
 openai
-supabasepytz
+supabase
+pytz
