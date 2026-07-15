@@ -126,6 +126,10 @@ def get_transactions(type: str = "", background_tasks: BackgroundTasks = Backgro
         trans_res = supabase.table('transactions').select('*, items(sku, name, unit)').order('created_at', desc=True).execute()
         
         result = []
+        import pytz
+        from datetime import datetime
+        hcm_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+        
         for t in trans_res.data:
             item_data = t.get('items', {})
             created_at_utc = t.get("created_at")
@@ -133,9 +137,24 @@ def get_transactions(type: str = "", background_tasks: BackgroundTasks = Backgro
             hcm_str = ""
             sys_str = ""
             if created_at_utc:
-                hcm_str = created_at_utc[:10] # Chỉ lấy ngày
+                try:
+                    # Remove trailing Z if present
+                    if created_at_utc.endswith('Z'):
+                        created_at_utc = created_at_utc[:-1] + '+00:00'
+                    dt = datetime.fromisoformat(created_at_utc)
+                    dt_hcm = dt.astimezone(hcm_tz)
+                    hcm_str = dt_hcm.strftime('%Y-%m-%d')
+                except Exception:
+                    hcm_str = created_at_utc[:10]
             if sys_created:
-                sys_str = sys_created[:19].replace('T', ' ')
+                try:
+                    if sys_created.endswith('Z'):
+                        sys_created = sys_created[:-1] + '+00:00'
+                    dt_sys = datetime.fromisoformat(sys_created)
+                    dt_sys_hcm = dt_sys.astimezone(hcm_tz)
+                    sys_str = dt_sys_hcm.strftime('%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    sys_str = sys_created[:19].replace('T', ' ')
             result.append({
                 "Thời gian": hcm_str,
                 "Thời gian hệ thống": sys_str,
@@ -166,6 +185,10 @@ class ItemCreate(BaseModel):
 @app.post("/api/items")
 def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = BackgroundTasks()):
     try:
+        current_now = get_local_now()
+        txn_date = payload.date if payload.date else current_now[:10]
+        txn_created_at = f"{txn_date} 00:00:00+07:00"
+        
         supabase = get_supabase_client()
         import time
         new_sku = f"SP{int(time.time() * 1000)}"
@@ -188,7 +211,8 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
                 "remaining_quantity": payload.quantity,
                 "import_price": payload.importPrice,
                 "expiration_date": payload.expirationDate if payload.expirationDate else None,
-                "created_at": get_local_now()
+                "created_at": txn_created_at,
+                "system_created_at": current_now
             }
             batch_res = supabase.table('inventory_batches').insert(batch_data).execute()
             batch_id = batch_res.data[0]['id']
@@ -199,7 +223,8 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
                 "action": "IMPORT",
                 "quantity": payload.quantity,
                 "user_name": "Đan",
-                "created_at": get_local_now()
+                "created_at": txn_created_at,
+                "system_created_at": current_now
             }
             supabase.table('transactions').insert(trans_data).execute()
             
