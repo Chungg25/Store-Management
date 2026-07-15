@@ -243,7 +243,7 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
 def get_implants():
     try:
         supabase = get_supabase_client()
-        res = supabase.table('implants').select('*').execute()
+        res = supabase.table('implants').select('*').order('quantity', desc=True).execute()
         return res.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
