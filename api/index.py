@@ -173,6 +173,8 @@ def get_transactions(type: str = "", background_tasks: BackgroundTasks = Backgro
         background_tasks.add_task(log_error, f"get_transactions error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+from typing import Optional
+
 class ItemCreate(BaseModel):
     name: str
     unit: str
@@ -180,9 +182,9 @@ class ItemCreate(BaseModel):
     conversion: str = ""
     minThreshold: int = 0
     group: str = ""
-    date: str = None
-    importPrice: float = None
-    expirationDate: str = None
+    date: Optional[str] = None
+    importPrice: Optional[float] = None
+    expirationDate: Optional[str] = None
     expWarningDays: int = 30
 
 @app.post("/api/items")

@@ -321,7 +321,9 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
         fetchItems();
       } else {
         const data = await res.json().catch(() => ({}));
-        setPopupError("Lỗi thêm mới: " + (data.detail || "Unknown error"));
+        let err = data.detail || "Unknown error";
+        if (typeof err === 'object') err = JSON.stringify(err);
+        setPopupError("Lỗi thêm mới: " + err);
       }
     } catch (err) {
       setPopupError("Lỗi kết nối Server.");
