@@ -204,7 +204,8 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
             "unit": payload.unit,
             "category": payload.group,
             "min_quantity": payload.minThreshold,
-            "exp_warning_days": payload.expWarningDays
+            "exp_warning_days": payload.expWarningDays,
+            "quantity": payload.quantity
         }
         item_res = supabase.table('items').insert(item_data).execute()
         item_id = item_res.data[0]['id']
