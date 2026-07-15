@@ -561,7 +561,7 @@ async def save_ocr(data: str = Form(...), background_tasks: BackgroundTasks = Ba
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 @app.delete("/api/batches/{batch_id}")
-def delete_batch(batch_id: int):
+def delete_batch(batch_id: str):
     try:
         supabase = get_supabase_client()
         
