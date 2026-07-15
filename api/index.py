@@ -432,7 +432,7 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
                     "action": "EXPORT",
                     "quantity": deduct,
                     "user_name": "Bình",
-                    "created_at": get_local_now()
+                    "created_at": correct_created_at
                 }
                 supabase.table('transactions').insert(trans_data).execute()
                 qty_to_export -= deduct
