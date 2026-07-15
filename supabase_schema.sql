@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS public.items (
     min_quantity INTEGER DEFAULT 0,
     quantity INTEGER DEFAULT 0,
     exp_warning_days INTEGER DEFAULT 30,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    system_created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS public.inventory_batches (
@@ -17,7 +18,8 @@ CREATE TABLE IF NOT EXISTS public.inventory_batches (
     expiration_date DATE,
     original_quantity INTEGER NOT NULL,
     remaining_quantity INTEGER NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    system_created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS public.transactions (
@@ -27,7 +29,8 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     action VARCHAR NOT NULL,
     quantity INTEGER NOT NULL,
     user_name VARCHAR,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    system_created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS public.implants (
@@ -37,7 +40,8 @@ CREATE TABLE IF NOT EXISTS public.implants (
     category VARCHAR,
     unit VARCHAR,
     quantity INTEGER DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    system_created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_inventory_batches_item_id ON public.inventory_batches(item_id);

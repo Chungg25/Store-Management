@@ -174,7 +174,8 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
       if (subName) item_name = `${item_name} (Size: ${subName})`;
 
       setTransactions(prev => [{
-        "Thời gian": timeStr,
+        "Thời gian": dateStr,
+        "Thời gian hệ thống": timeStr,
         "Hành động": action,
         "Mã hàng": sku,
         "Tên hàng": item_name,

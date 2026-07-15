@@ -87,7 +87,8 @@ const Transactions = ({ transactions, fetchItems }) => {
         <table>
           <thead>
             <tr>
-              <th>Thời gian</th>
+              <th>Thời gian (Hóa đơn)</th>
+              <th>Ngày thao tác</th>
               <th>Tên hàng</th>
               <th>Số lượng</th>
               <th>Mã hàng</th>
@@ -99,6 +100,7 @@ const Transactions = ({ transactions, fetchItems }) => {
             {filteredTransactions.map((t, idx) => (
               <tr key={idx}>
                 <td style={{ color: 'var(--text-muted)' }}>{t['Thời gian'] ? t['Thời gian'].split(' ')[0] : ''}</td>
+                <td style={{ fontSize: '0.85rem' }}>{t['Thời gian hệ thống'] || ''}</td>
                 <td>
                   <Link to={`/item/${t['Mã hàng']}`} style={{ fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.25rem' }} title="Xem lịch sử giao dịch">
                     {t['Tên hàng']}

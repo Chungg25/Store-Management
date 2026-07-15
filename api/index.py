@@ -129,12 +129,16 @@ def get_transactions(type: str = "", background_tasks: BackgroundTasks = Backgro
         for t in trans_res.data:
             item_data = t.get('items', {})
             created_at_utc = t.get("created_at")
+            sys_created = t.get("system_created_at")
             hcm_str = ""
+            sys_str = ""
             if created_at_utc:
-                # Just strip timezone and format
-                hcm_str = created_at_utc[:19].replace('T', ' ')
+                hcm_str = created_at_utc[:10] # Chỉ lấy ngày
+            if sys_created:
+                sys_str = sys_created[:19].replace('T', ' ')
             result.append({
                 "Thời gian": hcm_str,
+                "Thời gian hệ thống": sys_str,
                 "Mã hàng": item_data.get("sku", ""),
                 "Tên hàng": item_data.get("name", ""),
                 "Hành động": "Nhập" if t.get("action") == "IMPORT" else "Xuất",
@@ -432,7 +436,8 @@ def update_item_quantity(sku: str, payload: ItemUpdate, background_tasks: Backgr
                     "action": "EXPORT",
                     "quantity": deduct,
                     "user_name": "Bình",
-                    "created_at": correct_created_at
+                    "created_at": txn_created_at,
+                    "system_created_at": current_now
                 }
                 supabase.table('transactions').insert(trans_data).execute()
                 qty_to_export -= deduct
@@ -583,12 +588,14 @@ def delete_batch(batch_id: str):
                 supabase.table('items').update({'quantity': new_qty}).eq('id', item_id).execute()
                 
                 # Transaction Log
+                current_now = get_local_now()
                 trans_data = {
                     "item_id": item_id,
                     "action": "Xuất",
                     "quantity": qty_to_remove,
                     "user_name": "Hệ thống (Hủy lô)",
-                    "created_at": get_local_now()
+                    "created_at": current_now[:10] + " 00:00:00+07:00",
+                    "system_created_at": current_now
                 }
                 supabase.table('transactions').insert(trans_data).execute()
                 
