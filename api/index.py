@@ -123,7 +123,7 @@ def get_items(type: str = "", background_tasks: BackgroundTasks = BackgroundTask
 def get_transactions(type: str = "", background_tasks: BackgroundTasks = BackgroundTasks()):
     try:
         supabase = get_supabase_client()
-        trans_res = supabase.table('transactions').select('*, items(sku, name, unit)').order('created_at', desc=True).execute()
+        trans_res = supabase.table('transactions').select('*, items(sku, name, unit)').order('system_created_at', desc=True).execute()
         
         result = []
         import pytz
