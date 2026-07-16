@@ -972,6 +972,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
                 <thead>
                   <tr>
                     <th>Ngày nhập lô</th>
+                    <th>Tổng nhập</th>
                     <th>Số lượng tồn</th>
                     <th>Giá nhập</th>
                     <th>Hạn sử dụng</th>
@@ -992,9 +993,14 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
                       }
 
                       return (
-                        <tr key={b.id}>
+                        <tr key={b.id} style={{ opacity: b.remaining_quantity === 0 ? 0.6 : 1 }}>
                           <td>{new Date(b.created_at).toLocaleDateString('vi-VN')}</td>
-                          <td><span className="badge badge-success">{b.remaining_quantity}</span></td>
+                          <td>{b.original_quantity}</td>
+                          <td>
+                            <span className={`badge ${b.remaining_quantity === 0 ? 'badge-secondary' : 'badge-success'}`} style={b.remaining_quantity === 0 ? { background: '#6c757d', color: 'white' } : {}}>
+                              {b.remaining_quantity}
+                            </span>
+                          </td>
                           <td>{b.import_price ? parseInt(b.import_price).toLocaleString('vi-VN') + ' đ' : '-'}</td>
                           <td>
                             {b.expiration_date ? (
