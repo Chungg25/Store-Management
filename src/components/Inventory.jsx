@@ -774,12 +774,12 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
                               <div style={{ display: 'inline-block', position: 'relative', display: 'flex', flexDirection: 'column' }}>
                                 <label style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '2px', fontWeight: '500' }}>Giá nhập (VNĐ)</label>
                                 <input
-                                  type="number"
+                                  type="text"
                                   placeholder="Giá nhập"
                                   className="form-input"
                                   style={{ padding: '0.35rem', fontSize: '0.875rem', width: '115px', boxSizing: 'border-box' }}
                                   value={transactionImportPrice}
-                                  onChange={(e) => setTransactionImportPrice(e.target.value)}
+                                  onChange={(e) => setTransactionImportPrice(e.target.value.replace(/[^0-9]/g, ''))}
                                 />
                                 {transactionImportPrice && Number(transactionImportPrice) > 0 && Number(transactionImportPrice) < 1000 ? (
                                   <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '2px', zIndex: 10, background: 'white', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '2px' }}>
@@ -1091,7 +1091,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
               <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: '600', color: '#475569' }}>Giá nhập (VNĐ)</label>
-                  <input type="number" className="form-input" style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', width: '100%', boxSizing: 'border-box' }} value={addFormData.importPrice} onChange={e => setAddFormData({ ...addFormData, importPrice: e.target.value })} min="0" />
+                  <input type="text" className="form-input" style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', width: '100%', boxSizing: 'border-box' }} value={addFormData.importPrice} onChange={e => setAddFormData({ ...addFormData, importPrice: e.target.value.replace(/[^0-9]/g, '') })} />
                   {addFormData.importPrice && Number(addFormData.importPrice) > 0 && Number(addFormData.importPrice) < 1000 ? (
                     <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', display: 'flex', gap: '4px', zIndex: 10 }}>
                       <span onClick={() => setAddFormData({ ...addFormData, importPrice: addFormData.importPrice * 100000 })} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
