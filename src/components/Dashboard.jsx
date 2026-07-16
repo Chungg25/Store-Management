@@ -6,6 +6,21 @@ const Dashboard = ({ items, transactions }) => {
   const totalItems = items.length;
   const lowStockItems = items.filter(i => i.quantity <= i.minThreshold && i.minThreshold > 0).length;
 
+  const transactionsThisMonth = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    return transactions.filter(t => {
+      if (!t['Thời gian']) return false;
+      const datePart = t['Thời gian'].split(' ')[0];
+      if (!datePart) return false;
+      const parts = datePart.split('-');
+      if (parts.length < 2) return false;
+      return parseInt(parts[0]) === currentYear && parseInt(parts[1]) === currentMonth;
+    }).length;
+  }, [transactions]);
+
   // Xử lý dữ liệu cho Biểu đồ (Nhóm theo ngày - Chỉ tính "Xuất")
   const chartData = useMemo(() => {
     const dailyData = {};
@@ -41,8 +56,8 @@ const Dashboard = ({ items, transactions }) => {
           <p style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--danger)' }}>{lowStockItems}</p>
         </div>
         <div className="card">
-          <h3 style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Số lượt giao dịch</h3>
-          <p style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--primary)' }}>{transactions.length}</p>
+          <h3 style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Số lượt giao dịch (Tháng này)</h3>
+          <p style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--primary)' }}>{transactionsThisMonth}</p>
         </div>
       </div>
 
