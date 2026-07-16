@@ -291,8 +291,8 @@ def get_item_batches(sku: str, background_tasks: BackgroundTasks = BackgroundTas
             
         item_id = item_res.data[0]['id']
         
-        # Get active batches
-        batches_res = supabase.table('inventory_batches').select('*').eq('item_id', item_id).gt('remaining_quantity', 0).order('expiration_date', nullsfirst=False).order('created_at').execute()
+        # Get all batches (including depleted)
+        batches_res = supabase.table('inventory_batches').select('*').eq('item_id', item_id).order('expiration_date', nullsfirst=False).order('created_at').execute()
         
         batches_data = []
         for b in batches_res.data:
