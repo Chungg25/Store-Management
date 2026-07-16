@@ -29,3 +29,7 @@ credentials.json
 Data Store.xlsx
 delete_test_data.py
 supabase_schema.sql
+
+# Python
+__pycache__/
+*.pyc

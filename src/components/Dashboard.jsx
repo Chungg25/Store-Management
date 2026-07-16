@@ -56,7 +56,7 @@ const Dashboard = ({ items, transactions }) => {
           <p style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--danger)' }}>{lowStockItems}</p>
         </div>
         <div className="card">
-          <h3 style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Số lượt giao dịch (Tháng này)</h3>
+          <h3 style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Số lượt giao dịch trong tháng</h3>
           <p style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--primary)' }}>{transactionsThisMonth}</p>
         </div>
       </div>
