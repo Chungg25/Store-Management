@@ -144,7 +144,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
     // Find the item to set its existing expWarningDays as default
     const currentItem = items.find(i => i.sku === sku);
     if (currentItem && type === 'Nhập') {
-      setTransactionExpWarning(currentItem.expWarningDays || 30);
+      setTransactionExpWarning(currentItem.expWarningDays !== null && currentItem.expWarningDays !== undefined ? currentItem.expWarningDays : 30);
     } else {
       setTransactionExpWarning('');
     }
@@ -305,7 +305,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
       ...addFormData,
       quantity: parseInt(addFormData.quantity) || 0,
       minThreshold: parseInt(addFormData.minThreshold) || 0,
-      expWarningDays: parseInt(addFormData.expWarningDays) || 30,
+      expWarningDays: (addFormData.expWarningDays !== '' && !isNaN(addFormData.expWarningDays)) ? parseInt(addFormData.expWarningDays) : 30,
       importPrice: addFormData.importPrice ? parseFloat(addFormData.importPrice) : null
     };
 

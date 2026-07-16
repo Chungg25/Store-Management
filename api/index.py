@@ -83,7 +83,9 @@ def get_items(type: str = "", background_tasks: BackgroundTasks = BackgroundTask
         result = []
         for item in items_res.data:
             item_id = item.get("id")
-            warning_days = item.get("exp_warning_days") or 0
+            warning_days = item.get("exp_warning_days")
+            if warning_days is None:
+                warning_days = 30
             
             is_expiring = False
             closest_exp = None
@@ -334,12 +336,16 @@ def get_expiring_batches():
             if exp_date_str:
                 try:
                     exp_date = datetime.strptime(exp_date_str, '%Y-%m-%d').date()
-                    warning_days = item.get("exp_warning_days", 30)
-                    diff_days = (exp_date - today).days
-                    if diff_days <= warning_days:
-                        b_info = dict(b)
-                        b_info['item_sku'] = item['sku']
-                        b_info['item_name'] = item['name']
+                    warning_days = item.get("exp_warning_days")
+                    if warning_days is None:
+                        warning_days = 30
+                        
+                    if warning_days > 0:
+                        diff_days = (exp_date - today).days
+                        if diff_days <= warning_days:
+                            b_info = dict(b)
+                            b_info['item_sku'] = item['sku']
+                            b_info['item_name'] = item['name']
                         b_info['diff_days'] = diff_days
                         expiring.append(b_info)
                 except:
