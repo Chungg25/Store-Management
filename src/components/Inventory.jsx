@@ -778,19 +778,19 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
                                   placeholder="Giá nhập"
                                   className="form-input"
                                   style={{ padding: '0.35rem', fontSize: '0.875rem', width: '115px', boxSizing: 'border-box' }}
-                                  value={transactionImportPrice}
+                                  value={transactionImportPrice ? Number(transactionImportPrice).toLocaleString('vi-VN') : ''}
                                   onChange={(e) => setTransactionImportPrice(e.target.value.replace(/[^0-9]/g, ''))}
                                 />
-                                {transactionImportPrice && Number(transactionImportPrice) > 0 && Number(transactionImportPrice) < 1000 ? (
+                                {transactionImportPrice && Number(transactionImportPrice) > 0 && Number(transactionImportPrice) < 10000 ? (
                                   <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '2px', zIndex: 10, background: 'white', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '2px' }}>
-                                    <span onClick={() => setTransactionImportPrice(transactionImportPrice * 100000)} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem', padding: '4px 6px', borderRadius: '2px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                      {transactionImportPrice} Trăm
+                                    <span onClick={() => setTransactionImportPrice(transactionImportPrice + '000')} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem', padding: '4px 6px', borderRadius: '2px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                      {Number(transactionImportPrice + '000').toLocaleString('vi-VN')}
                                     </span>
-                                    <span onClick={() => setTransactionImportPrice(transactionImportPrice * 1000000)} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem', padding: '4px 6px', borderRadius: '2px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                      {transactionImportPrice} Triệu
+                                    <span onClick={() => setTransactionImportPrice(transactionImportPrice + '0000')} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem', padding: '4px 6px', borderRadius: '2px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                      {Number(transactionImportPrice + '0000').toLocaleString('vi-VN')}
                                     </span>
-                                    <span onClick={() => setTransactionImportPrice(transactionImportPrice * 10000000)} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem', padding: '4px 6px', borderRadius: '2px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                      {transactionImportPrice} Chục Tr
+                                    <span onClick={() => setTransactionImportPrice(transactionImportPrice + '00000')} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem', padding: '4px 6px', borderRadius: '2px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                      {Number(transactionImportPrice + '00000').toLocaleString('vi-VN')}
                                     </span>
                                   </div>
                                 ) : null}
@@ -1091,17 +1091,17 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
               <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: '600', color: '#475569' }}>Giá nhập (VNĐ)</label>
-                  <input type="text" className="form-input" style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', width: '100%', boxSizing: 'border-box' }} value={addFormData.importPrice} onChange={e => setAddFormData({ ...addFormData, importPrice: e.target.value.replace(/[^0-9]/g, '') })} />
-                  {addFormData.importPrice && Number(addFormData.importPrice) > 0 && Number(addFormData.importPrice) < 1000 ? (
+                  <input type="text" className="form-input" style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', width: '100%', boxSizing: 'border-box' }} value={addFormData.importPrice ? Number(addFormData.importPrice).toLocaleString('vi-VN') : ''} onChange={e => setAddFormData({ ...addFormData, importPrice: e.target.value.replace(/[^0-9]/g, '') })} />
+                  {addFormData.importPrice && Number(addFormData.importPrice) > 0 && Number(addFormData.importPrice) < 10000 ? (
                     <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', display: 'flex', gap: '4px', zIndex: 10 }}>
-                      <span onClick={() => setAddFormData({ ...addFormData, importPrice: addFormData.importPrice * 100000 })} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                        {addFormData.importPrice} Trăm
+                      <span onClick={() => setAddFormData({ ...addFormData, importPrice: addFormData.importPrice + '000' })} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                        {Number(addFormData.importPrice + '000').toLocaleString('vi-VN')}
                       </span>
-                      <span onClick={() => setAddFormData({ ...addFormData, importPrice: addFormData.importPrice * 1000000 })} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                        {addFormData.importPrice} Triệu
+                      <span onClick={() => setAddFormData({ ...addFormData, importPrice: addFormData.importPrice + '0000' })} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                        {Number(addFormData.importPrice + '0000').toLocaleString('vi-VN')}
                       </span>
-                      <span onClick={() => setAddFormData({ ...addFormData, importPrice: addFormData.importPrice * 10000000 })} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                        {addFormData.importPrice} Chục Tr
+                      <span onClick={() => setAddFormData({ ...addFormData, importPrice: addFormData.importPrice + '00000' })} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                        {Number(addFormData.importPrice + '00000').toLocaleString('vi-VN')}
                       </span>
                     </div>
                   ) : null}
