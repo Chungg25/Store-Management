@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://dr-smile-api-prod-kam4.onrender.com/api/$1"
+      "destination": "https://store-management-e8dq.onrender.com/api/$1"
     }
   ]
 }
