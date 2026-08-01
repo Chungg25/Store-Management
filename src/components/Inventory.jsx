@@ -333,7 +333,8 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
   };
 
   const handleExportTotal = () => {
-    const data = filteredItems.map(item => ({
+    const sortedItems = [...filteredItems].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    const data = sortedItems.map(item => ({
       'Tên vật tư': item.name,
       'Đơn vị tính': item.unit,
       'Tồn kho': item.quantity,
