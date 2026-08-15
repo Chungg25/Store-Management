@@ -28,7 +28,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
   const [batchList, setBatchList] = useState([]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [addFormData, setAddFormData] = useState({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '', date: '' });
+  const [addFormData, setAddFormData] = useState({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '', date: '', importPrice: '', expirationDate: '', expWarningDays: 30, sizes: '' });
   const [isAdding, setIsAdding] = useState(false);
 
   const [reportStartMonth, setReportStartMonth] = useState('');
@@ -301,12 +301,14 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
     e.preventDefault();
     setIsAdding(true);
     
+    const sizesArray = addFormData.sizes ? addFormData.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
     const payload = {
       ...addFormData,
       quantity: parseInt(addFormData.quantity) || 0,
       minThreshold: parseInt(addFormData.minThreshold) || 0,
       expWarningDays: (addFormData.expWarningDays !== '' && !isNaN(addFormData.expWarningDays)) ? parseInt(addFormData.expWarningDays) : 30,
-      importPrice: addFormData.importPrice ? parseFloat(addFormData.importPrice) : null
+      importPrice: addFormData.importPrice ? parseFloat(addFormData.importPrice) : null,
+      sizes: sizesArray
     };
 
     try {
@@ -317,7 +319,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
       });
       if (res.ok) {
         setIsAddModalOpen(false);
-        setAddFormData({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '', date: '', importPrice: '', expirationDate: '', expWarningDays: 30 });
+        setAddFormData({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '', date: '', importPrice: '', expirationDate: '', expWarningDays: 30, sizes: '' });
         fetchItems();
       } else {
         const data = await res.json().catch(() => ({}));
@@ -561,7 +563,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-primary" onClick={() => {
             const today = new Date();
-            setAddFormData({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '', date: new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().substring(0, 10), importPrice: '', expirationDate: '', expWarningDays: 30 });
+            setAddFormData({ name: '', unit: '', quantity: 0, conversion: '', minThreshold: 0, group: '', date: new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().substring(0, 10), importPrice: '', expirationDate: '', expWarningDays: 30, sizes: '' });
             setIsAddModalOpen(true);
           }} style={{ background: '#3b82f6', color: 'white', border: 'none' }}>
             Thêm vật tư
@@ -1089,6 +1091,14 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
                 </div>
               </div>
               
+              {(addFormData.group || '').toLowerCase().includes('implant') && (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: '600', color: '#475569' }}>Kích thước / Size (Nếu có)</label>
+                  <input type="text" className="form-input" style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', width: '100%', boxSizing: 'border-box' }} value={addFormData.sizes || ''} onChange={e => setAddFormData({ ...addFormData, sizes: e.target.value })} placeholder="VD: 3.5, 4.0, 5.0 (cách nhau bằng dấu phẩy)" />
+                  <small style={{ color: '#64748b', marginTop: '4px', display: 'block' }}>Hệ thống sẽ tự động tạo các size này với số lượng ban đầu là 0. Bạn có thể nhập kho cho từng size sau.</small>
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: '600', color: '#475569' }}>Giá nhập (VNĐ)</label>

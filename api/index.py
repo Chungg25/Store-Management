@@ -188,6 +188,7 @@ class ItemCreate(BaseModel):
     importPrice: Optional[float] = None
     expirationDate: Optional[str] = None
     expWarningDays: int = 30
+    sizes: list[str] = []
 
 @app.post("/api/items")
 def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = BackgroundTasks()):
@@ -211,6 +212,20 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
         }
         item_res = supabase.table('items').insert(item_data).execute()
         item_id = item_res.data[0]['id']
+        
+        if hasattr(payload, 'sizes') and payload.sizes:
+            for idx, size in enumerate(payload.sizes):
+                imp_sku = f"IMP-{int(time.time() * 1000)}-{idx}"
+                imp_data = {
+                    "sku": imp_sku,
+                    "name": size,
+                    "category": payload.name,
+                    "unit": payload.unit,
+                    "quantity": 0,
+                    "created_at": current_now,
+                    "system_created_at": current_now
+                }
+                supabase.table('implants').insert(imp_data).execute()
         
         if payload.quantity > 0:
             batch_data = {
