@@ -297,6 +297,32 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
     });
   };
 
+  const handleAddNewSize = async (item) => {
+    const newSize = window.prompt(`Nhập kích thước (size) mới cho Implant "${item.name}":\nVí dụ: 6.0`);
+    if (!newSize || newSize.trim() === '') return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch('/api/implants/size', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_sku: item.sku, size_name: newSize.trim() })
+      });
+      if (res.ok) {
+        setPopupError("Đã thêm size thành công! (Thông báo này sẽ tự động đóng)");
+        setTimeout(() => setPopupError(null), 2000);
+        fetchItems();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setPopupError("Lỗi thêm size: " + (data.detail || "Unknown"));
+      }
+    } catch (err) {
+      setPopupError("Lỗi kết nối Server khi thêm size.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     setIsAdding(true);
@@ -826,12 +852,13 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
                           {(() => {
                             const cleanItemName = (item.name || '').trim().toLowerCase();
                             const relatedImplants = implants.filter(imp => (imp.category || '').trim().toLowerCase() === cleanItemName);
-                            if (relatedImplants.length > 0) {
+                            const isImplantGroup = (item.group || '').toLowerCase().includes('implant');
+                            if (relatedImplants.length > 0 || isImplantGroup) {
                               return (
-                                <div>
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                   <select
                                     className="form-input"
-                                    style={{ padding: '0.35rem', fontSize: '0.875rem', width: '100%' }}
+                                    style={{ padding: '0.35rem', fontSize: '0.875rem', flex: 1 }}
                                     value={transactionSubSku}
                                     onChange={e => setTransactionSubSku(e.target.value)}
                                   >
@@ -840,6 +867,7 @@ const Inventory = ({ items, setItems, fetchItems, transactions, setTransactions,
                                       <option key={imp.sku} value={imp.sku}>{imp.name}</option>
                                     ))}
                                   </select>
+                                  <button onClick={() => handleAddNewSize(item)} style={{ whiteSpace: 'nowrap', padding: '0.25rem 0.5rem', background: '#e0e7ff', color: '#4338ca', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>+ Thêm Size</button>
                                 </div>
                               );
                             }

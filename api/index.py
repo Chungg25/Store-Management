@@ -222,8 +222,7 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
                     "category": payload.name,
                     "unit": payload.unit,
                     "quantity": 0,
-                    "created_at": current_now,
-                    "system_created_at": current_now
+                    "created_at": current_now
                 }
                 supabase.table('implants').insert(imp_data).execute()
         
@@ -255,6 +254,40 @@ def create_item(payload: ItemCreate, background_tasks: BackgroundTasks = Backgro
     except Exception as e:
         background_tasks.add_task(log_error, f"create_item error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+class ImplantSizeCreate(BaseModel):
+    item_sku: str
+    size_name: str
+
+@app.post("/api/implants/size")
+def create_implant_size(payload: ImplantSizeCreate, background_tasks: BackgroundTasks = BackgroundTasks()):
+    try:
+        supabase = get_supabase_client()
+        # Fetch the parent item
+        item_res = supabase.table('items').select('name, unit').eq('sku', payload.item_sku).execute()
+        if not item_res.data:
+            raise HTTPException(status_code=404, detail="Không tìm thấy vật tư cha.")
+            
+        parent_item = item_res.data[0]
+        
+        current_now = get_local_now()
+        import time
+        imp_sku = f"IMP-{int(time.time() * 1000)}"
+        
+        imp_data = {
+            "sku": imp_sku,
+            "name": payload.size_name,
+            "category": parent_item['name'],
+            "unit": parent_item['unit'],
+            "quantity": 0,
+            "created_at": current_now
+        }
+        supabase.table('implants').insert(imp_data).execute()
+        return {"status": "success", "sku": imp_sku}
+    except Exception as e:
+        background_tasks.add_task(log_error, f"create_implant_size error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/implants")
 def get_implants():
