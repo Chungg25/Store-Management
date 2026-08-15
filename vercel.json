@@ -3,6 +3,10 @@
     {
       "source": "/api/(.*)",
       "destination": "https://store-management-e8dq.onrender.com/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
